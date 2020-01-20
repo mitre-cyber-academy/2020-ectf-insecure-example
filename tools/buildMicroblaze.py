@@ -15,7 +15,7 @@ import os
 def output_helper(dev_path):
     """ A helper that handles mb build output, including saving old mipod copies """
 
-    mi_path = dev_path + "/miPod/Debug/"
+    mi_path = dev_path + "/mb//miPod/Debug/"
     mipod_elf = mi_path + "miPod.elf"
     mipod = mi_path + "miPod"
     mipod_old = mi_path + "miPod_old"
