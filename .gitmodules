@@ -3,4 +3,4 @@
 	url = https://github.com/Digilent/vivado-boards.git
 [submodule "pl"]
 	path = pl
-	url = git@github.com:mitre-cyber-academy/Cora-Z7-07S-base-linux.git
+	url = https://github.com/mitre-cyber-academy/Cora-Z7-07S-base-linux.git
