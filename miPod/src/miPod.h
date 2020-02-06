@@ -32,12 +32,9 @@
 typedef struct {
     int num_regions;
     int num_users;
-    //char owner[USERNAME_SZ];
-    //char regions[MAX_REGIONS * REGION_NAME_SZ];
-    //char users[MAX_USERS * USERNAME_SZ];
-    std::string owner;
-    std::string regions;
-    std::string users;
+    char owner[USERNAME_SZ];
+    char regions[MAX_REGIONS * REGION_NAME_SZ];
+    char users[MAX_USERS * USERNAME_SZ];
 } query;
 
 // simulate array of 64B names without pointer indirection
@@ -51,19 +48,16 @@ typedef struct __attribute__((__packed__)) {
     char owner_id;
     char num_regions;
     char num_users;
-    //char buf[];
-    std::string buf;
+    char buf[];
 } drm_md;
 
 
 // struct to interpret shared buffer as a drm song file
 // packing values skip over non-relevant WAV metadata
 typedef struct __attribute__((__packed__)) {
-    //char packing1[4];
-    std::string packing //should check for length 4
+    char packing1[4];
     int file_size;
-    //char packing2[32];
-    std::string packing2 //should check for length 32
+    char packing2[32];
     int wav_size;
     drm_md md;
 } song;
@@ -85,18 +79,16 @@ typedef volatile struct __attribute__((__packed__)) {
     char drm_state;             // from states enum
     char login_status;          // 0 = logged off, 1 = logged on
     char padding;               // not used
-    //char username[USERNAME_SZ]; // stores logged in or attempted username
-    std::string username //check for USERNAME_SZ
-    //char pin[MAX_PIN_SZ];       // stores logged in or attempted pin
-    std::string pin //check for MAX_PIN_SZ
+    char username[USERNAME_SZ]; // stores logged in or attempted username
+    char pin[MAX_PIN_SZ];       // stores logged in or attempted pin
 
     // shared buffer is either a drm song or a query
     union {
         song song;
         query query;
-        //char buf[MAX_SONG_SZ]; // sets correct size of cmd_channel for allocation
-        std::string buf //check for MAX_SONG_SZ
+        char buf[MAX_SONG_SZ]; // sets correct size of cmd_channel for allocation
     };
 } cmd_channel;
 
 #endif /* SRC_MIPOD_H_ */
+
