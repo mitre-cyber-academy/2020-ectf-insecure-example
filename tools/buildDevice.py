@@ -145,7 +145,7 @@ def main():
             build_microblaze(xsct, proj_name, dev_path_tools, dev_path)
 
             print("\nProceeding to Combine Bitstream:\n")
-            combine_bitstream(xsct, dev_path_tools, dev_path)
+            combine_bitstream(xsct, dev_path_tools, dev_path, proj_name)
 
     else:
         if args.build_flag == "cs":
@@ -160,7 +160,7 @@ def main():
         elif args.build_flag == "bm":
             build_microblaze(xsct, proj_name, dev_path_tools, dev_path)
         elif args.build_flag == "cb":
-            combine_bitstream(xsct, dev_path_tools, dev_path)
+            combine_bitstream(xsct, dev_path_tools, dev_path, proj_name)
 
 if __name__ == '__main__':
     main()
