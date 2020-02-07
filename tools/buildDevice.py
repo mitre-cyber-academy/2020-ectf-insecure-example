@@ -121,6 +121,7 @@ def main():
     path_to_proj_tcl = dev_path_pl + "/proj/create_project.tcl"
     path_to_bits_tcl = dev_path_pl + "/proj/gen_bitstream.tcl"
     bif_outpath = dev_path_mb + "/BOOT.bin"
+    run_dir = os.getcwd()
 
     if opt_proj_name:
         proj_name = opt_proj_name
@@ -144,6 +145,8 @@ def main():
             print("Please be warned this will take a while a long time.\n")
             gen_bitstream(dev_path_pl, proj_name, vivado_batch, path_to_bits_tcl)
 
+            path_util(run_dir)
+
             print("\nProceeding to Build Microblaze:\n")
             build_microblaze(xsct, proj_name, dev_path_tools, dev_path, device_dir)
 
@@ -157,9 +160,11 @@ def main():
         elif args.build_flag == "cp":
             path_util(dev_path_pl)
             create_project(vivado_batch, path_to_proj_tcl, proj_name)
+            path_util(run_dir)
         elif args.build_flag == "gb":
             path_util(dev_path_pl)
             gen_bitstream(dev_path_pl, proj_name, vivado_batch, path_to_bits_tcl)
+            path_util(run_dir)
         elif args.build_flag == "bm":
             if verify_secrets(args.secrets_directory):
                 build_microblaze(xsct, proj_name, dev_path_tools, dev_path, device_dir)
