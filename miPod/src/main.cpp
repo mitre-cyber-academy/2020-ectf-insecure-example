@@ -13,12 +13,14 @@
 #include <unistd.h>
 #include <errno.h>
 #include <linux/gpio.h>
-#include <string>
+#include <string.h>
+
 //c++ includes
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <bits/stdc++.h> 
+#include <bits/stdc++.h>
+#include <string>
 
 //change headerfile so that all structs use std::string instead of char[] or char*
 cmd_channel *c;
@@ -28,7 +30,14 @@ cmd_channel *c;
 // sends a command to the microblaze using the shared command channel and interrupt
 void send_command(int cmd) {
 	std::cout << "Sending command: '" << cmd << "'" << std::endl;
-	memcpy((void*) &c->cmd, &cmd, 1); //replace with memcpy_s
+
+	std::cout << "cmd temp: " << cmd << "\n";
+
+	if (memcpy((void*) &c->cmd, &cmd, 1) == 1) { //TODO: Check for cmd size
+		std::cout << "Could not copy memory: " << (errno) << std::endl;
+	}
+
+	std::cout << "cmd struct: " << c->cmd << "\n";
 
 	//trigger gpio interrupt
 	system("devmem 0x41200000 32 0"); //reconsider the use of the system command
@@ -45,6 +54,12 @@ void send_command(int cmd) {
 
 void parse_input(std::string input, std::string& cmd, std::string& arg1,
 		std::string& arg2) {
+	//size_t pos = 0
+	//std::string temp;
+	//while((pos = input.find(" ")) != std::nopos) {
+	//temp = input.substring(0,pos);
+	//}
+
 	std::string inputs[3];
 
 	std::stringstream ssin(input);
@@ -166,8 +181,10 @@ size_t load_file(std::string fname, songStruct *song_buf) {
 
 //done
 void login(std::string& username, std::string& pin) {
+	//TODO change pin.size() check to the password specified by the rules (5)
+	std::cout << "Checking username: '" << username << "' pin: '" << pin << "'" << std::endl;
 	if (username.size() == 0 || pin.size() == 0 || username.size() > 8
-			|| pin.size() > 5) {
+			|| pin.size() > 10) {
 		std::cout << "Invalid user name/PIN\r\n";
 		print_help();
 		return;
@@ -396,7 +413,7 @@ int play_song(std::string song_name) {
 				print_playback_help();
 			}
 		} else {
-			std::cout << "Please enter a command." << std:endl;
+			std::cout << "Please enter a command." << std::endl;
 			print_playback_help();
 		}
 	}
