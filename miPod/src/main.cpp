@@ -23,7 +23,7 @@
 #include <string>
 
 //change headerfile so that all structs use std::string instead of char[] or char*
-cmd_channel *c;
+volatile cmd_channel *c;
 
 //////////////////////// UTILITY FUNCTIONS ////////////////////////
 
@@ -33,7 +33,7 @@ void send_command(int cmd) {
 
 	std::cout << "cmd temp: " << cmd << "\n";
 
-	if (memcpy((void*) &c->cmd, &cmd, 1) == 1) { //TODO: Check for cmd size
+	if (memcpy((void*) &c->cmd, &cmd, 1) == NULL) { //TODO: Check for cmd size
 		std::cout << "Could not copy memory: " << (errno) << std::endl;
 	}
 
@@ -200,8 +200,8 @@ void login(std::string& username, std::string& pin) {
 	}
 	//drive DRM
 	//instead of strcpy use '=' operator
-	c->username = username;
-	c->pin = pin;
+	((cmd_channel *) c)->username = username;
+	((cmd_channel *) c)->pin = pin;
 	send_command(LOGIN);
 }
 
@@ -244,7 +244,7 @@ void query_player() {
 // queries the DRM about a song
 void query_song(std::string song_name) {
 	// load the song into the shared buffer
-	if (!load_file(song_name, &c->song)) {
+	if (!load_file(song_name, &((cmd_channel *)c)->song)) {
 		std::cerr << "Failed to load song!\r\n";
 		return;
 	}
@@ -264,7 +264,7 @@ void query_song(std::string song_name) {
 	}
 	std::cout << "\r\n";
 
-	std::cout << "Owner: " << c->query.owner;
+	std::cout << "Owner: " << ((cmd_channel *) c)->query.owner;
 	std::cout << "\r\n";
 
 	std::cout << "Authorized users: ";
@@ -290,7 +290,7 @@ void share_song(std::string song_name, std::string& username) {
 	}
 
 	// load the song into the shared buffer
-	if (!load_file(song_name, &c->song)) {
+	if (!load_file(song_name, &((cmd_channel *)c)->song)) {
 		std::cerr << "Failed to load song!\r\n";
 		return;
 	}
@@ -300,7 +300,7 @@ void share_song(std::string song_name, std::string& username) {
 	char username_buf[USERNAME_SZ];
 	username.copy(username_buf, USERNAME_SZ, 0);
 
-	c->username = username_buf;
+	((cmd_channel *)c)->username = username_buf;
 
 	// drive DRM
 	send_command(SHARE);
@@ -350,7 +350,7 @@ int play_song(std::string song_name) {
 	std::string arg2 = "";
 
 	// load song into shared buffer
-	if (!load_file(song_name, &c->song)) {
+	if (!load_file(song_name, &((cmd_channel *)c)->song)) {
 		std::cerr << "Failed to load song!\r\n";
 		return 0;
 	}
@@ -428,7 +428,7 @@ void digital_out(std::string song_name) {
 	//not sure about converting this code to C++
 
 	// load file into shared buffer
-	if (!load_file(song_name, &c->song)) {
+	if (!load_file(song_name, &((cmd_channel *)c)->song)) {
 		std::cout << "Failed to load song!\r\n";
 		return;
 	}
