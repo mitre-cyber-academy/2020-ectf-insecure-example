@@ -319,6 +319,7 @@ void digital_out(char *song_name) {
 
     // open digital output file
     int written = 0, wrote, length = c->song.file_size + 8;
+    sprintf(fname, "%s.dout", song_name);
     int fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC);
     if (fd == -1){
         mp_printf("Failed to open file! Error = %d\r\n", errno);
