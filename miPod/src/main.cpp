@@ -200,8 +200,8 @@ void login(std::string& username, std::string& pin) {
 	}
 	//drive DRM
 	//instead of strcpy use '=' operator
-	((cmd_channel *) c)->username = username;
-	((cmd_channel *) c)->pin = pin;
+	username.copy(((cmd_channel *) c)->username, USERNAME_SZ, 0);
+	pin.copy(((cmd_channel *) c)->pin, MAX_PIN_SZ, 0);
 	send_command(LOGIN);
 }
 
@@ -295,12 +295,7 @@ void share_song(std::string song_name, std::string& username) {
 		return;
 	}
 
-	//strcpy((char *)c->username, username);
-	//use '=' operator instead of strcpy
-	char username_buf[USERNAME_SZ];
-	username.copy(username_buf, USERNAME_SZ, 0);
-
-	((cmd_channel *)c)->username = username_buf;
+	username.copy(((cmd_channel *)c)->username, USERNAME_SZ, 0);
 
 	// drive DRM
 	send_command(SHARE);

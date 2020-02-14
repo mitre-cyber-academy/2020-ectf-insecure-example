@@ -28,19 +28,13 @@
 #define print_prompt() printf(USER_PROMPT, "")
 #define print_prompt_msg(...) printf(USER_PROMPT, __VA_ARGS__)
 
-#include <string>
-
 // struct to interpret shared buffer as a query
 typedef struct {
     int num_regions;
     int num_users;
-    // TODO: Check for max sizes
-    //char owner[USERNAME_SZ];
-    //char regions[MAX_REGIONS * REGION_NAME_SZ];
-    //char users[MAX_USERS * USERNAME_SZ];
-    std::string owner;
-    std::string regions[MAX_REGIONS];
-    std::string users[MAX_USERS];
+    char owner[USERNAME_SZ];
+    char regions[MAX_REGIONS * REGION_NAME_SZ];
+    char users[MAX_USERS * USERNAME_SZ];
 } queryStruct;
 
 // simulate array of 64B names without pointer indirection
@@ -54,8 +48,7 @@ typedef struct __attribute__((__packed__)) {
     char owner_id;
     char num_regions;
     char num_users;
-    //char buf[];
-    std::string buf;
+    char buf[];
 } drm_md;
 
 
@@ -63,10 +56,8 @@ typedef struct __attribute__((__packed__)) {
 // packing values skip over non-relevant WAV metadata
 typedef struct __attribute__((__packed__)) {
     char packing1[4];
-    //std::string packing; //should check for length 4
     int file_size;
     char packing2[32];
-    //std::string packing2; //should check for length 32
     int wav_size;
     drm_md md;
 } songStruct;
@@ -88,16 +79,14 @@ typedef struct __attribute__((__packed__)) {
     char drm_state;             // from states enum
     char login_status;          // 0 = logged off, 1 = logged on
     char padding;               // not used
-    std::string username; // TODO: check for size, stores logged in or attempted username
-    //char pin[MAX_PIN_SZ];       // stores logged in or attempted pin
-    std::string pin; // TODO: check for MAX_PIN_SZ
+    char username[USERNAME_SZ]; 				// TODO: check for size, stores logged in or attempted username
+    char pin[MAX_PIN_SZ];       // stores logged in or attempted pin
 
     // shared buffer is either a drm song or a query
     union {
         songStruct song;
         queryStruct query;
-        //char buf[MAX_SONG_SZ]; // sets correct size of cmd_channel for allocation
-        char buf[MAX_SONG_SZ]; // TODO: check for MAX_SONG_SZ
+        char buf[MAX_SONG_SZ]; // sets correct size of cmd_channel for allocation
     };
 } cmd_channel;
 
