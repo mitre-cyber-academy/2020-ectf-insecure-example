@@ -74,12 +74,12 @@ enum states   { STOPPED, WORKING, PLAYING, PAUSED };
 
 
 // struct to interpret shared command channel
-typedef struct __attribute__((__packed__)) {
+typedef volatile struct __attribute__((__packed__)) {
     char cmd;                   // from commands enum
     char drm_state;             // from states enum
     char login_status;          // 0 = logged off, 1 = logged on
     char padding;               // not used
-    char username[USERNAME_SZ]; 				// TODO: check for size, stores logged in or attempted username
+    char username[USERNAME_SZ]; // stores logged in or attempted username
     char pin[MAX_PIN_SZ];       // stores logged in or attempted pin
 
     // shared buffer is either a drm song or a query
