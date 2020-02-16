@@ -45,20 +45,8 @@ void send_command(int cmd) {
 }
 
 // parses the input of a command with up to two arguments
-// any arguments not present will be set to NULL
-//void parse_input(char *input, char **cmd, char **arg1, char **arg2) {
-//    *cmd = strtok(input, " \r\n");
-//    *arg1 = strtok(NULL, " \r\n");
-//    *arg2 = strtok(NULL, " \r\n");
-//}
-
 void parse_input(std::string input, std::string& cmd, std::string& arg1,
 		std::string& arg2) {
-	//size_t pos = 0
-	//std::string temp;
-	//while((pos = input.find(" ")) != std::nopos) {
-	//temp = input.substring(0,pos);
-	//}
 
 	std::string inputs[3];
 
@@ -85,46 +73,20 @@ void parse_input(std::string input, std::string& cmd, std::string& arg1,
 }
 
 // prints the help message while not in playback
-//void print_help() {
-//    mp_printf("miPod options:\r\n");
-//    mp_printf("  login <username> <pin>: log on to a miPod account (must be logged out)\r\n");
-//    mp_printf("  logout: log off of a miPod account (must be logged in)\r\n");
-//    mp_printf("  query <song.drm>: display information about the song\r\n");
-//    mp_printf("  share <song.drm> <username>: share the song with the specified user\r\n");
-//    mp_printf("  play <song.drm>: play the song\r\n");
-//    mp_printf("  digital_out <song.drm>: play the song to digital out\r\n");
-//    mp_printf("  exit: exit miPod\r\n");
-//    mp_printf("  help: display this message\r\n");
-//}
-
 //done
 void print_help() {
 	//cout is more secure than a printf variant because cout doesn't have format specifiers
 	std::cout << "miPod options:\r\n";
-	std::cout
-			<< "  login<username> <pin>: log on to a miPod account (must be logged out)\r\n";
+	std::cout << "  login<username> <pin>: log on to a miPod account (must be logged out)\r\n";
 	std::cout << "  logout: log off a miPod account (must be logged in)\r\n";
 	std::cout << "  query <song.drm>: display information about the song\r\n";
-	std::cout
-			<< "  share <song.drm>: <username>: share the song with the specified user\r\n";
+	std::cout << "  share <song.drm>: <username>: share the song with the specified user\r\n";
 	std::cout << "  play <song.drm>: play the song\r\n";
 	std::cout << "  exit: exit miPod\r\n";
 	std::cout << "  help: display this message\r\n";
 }
 
 // prints the help message while in playback
-//void print_playback_help() {
-//    mp_printf("miPod playback options:\r\n");
-//    mp_printf("  stop: stop playing the song\r\n");
-//    mp_printf("  pause: pause the song\r\n");
-//    mp_printf("  resume: resume the paused song\r\n");
-//    mp_printf("  restart: restart the song\r\n");
-//    mp_printf("  ff: fast forwards 5 seconds(unsupported)\r\n");
-//    mp_printf("  rw: rewind 5 seconds (unsupported)\r\n");
-//    mp_printf("  help: display this message\r\n");
-//}
-
-//done
 void print_playback_help() {
 	std::cout << "miPod playback options:\r\n";
 	std::cout << "  stop: stop playing the song\r\n";
@@ -140,46 +102,29 @@ void print_playback_help() {
 // loads a file into the song buffer with the associate
 // returns the size of the file or 0 on error
 size_t load_file(std::string fname, songStruct *song_buf) {
-	struct stat sb;
+    int fd;
+    struct stat sb;
 
-	std::fstream fin;
-	fin.open(fname, std::fstream::in | std::fstream::binary);
+    fd = open(fname.c_str(), O_RDONLY);
+    if (fd == -1){
+        std::cout << "Failed to open file! Error = " << (errno) << std::endl;
+        return 0;
+    }
 
-	if (fin.fail()) {
-		std::cerr << "Failed to open file! Error = " << (errno) << std::endl;
-		return 0;
-	}
+    if (fstat(fd, &sb) == -1){
+        std::cout << "Failed to stat file! Error = " << (errno) << std::endl;
+        return 0;
+    }
 
-	if (stat(fname.c_str(), &sb) != -1) {
-		std::cerr << "Failed to stat file! Error = " << (errno) << "\r\n";
-		return 0;
-	}
+    read(fd, song_buf, sb.st_size);
+    close(fd);
 
-	fin.read((char*) &song_buf, sizeof(songStruct));
-
-	fin.close();
-
-	std::cout << "Loaded file into shared buffer " << sb.st_size << "\r\n";
-	return sb.st_size;
+    //mp_printf("Loaded file into shared buffer (%dB)\r\n", sb.st_size);
+    return sb.st_size;
 }
 
 //////////////////////// COMMAND FUNCTIONS ////////////////////////
 
-// attempts to log in for a user
-//void login(char *username, char *pin) {
-//    if (!username || !pin) {
-//        mp_printf("Invalid user name/PIN\r\n");
-//        print_help();
-//        return;
-//    }
-
-// drive DRM
-//    strcpy((void*)c->username, username);
-//    strcpy((void*)c->pin, pin);
-//    send_command(LOGIN);
-//}
-
-//done
 void login(std::string& username, std::string& pin) {
 	//TODO change pin.size() check to the password specified by the rules (5)
 	std::cout << "Checking username: '" << username << "' pin: '" << pin << "'" << std::endl;
@@ -200,8 +145,8 @@ void login(std::string& username, std::string& pin) {
 	}
 	//drive DRM
 	//instead of strcpy use '=' operator
-	username.copy(((cmd_channel *) c)->username, USERNAME_SZ, 0);
-	pin.copy(((cmd_channel *) c)->pin, MAX_PIN_SZ, 0);
+	username.copy((char *) c->username, USERNAME_SZ, 0);
+	pin.copy((char *)c->pin, MAX_PIN_SZ, 0);
 	send_command(LOGIN);
 }
 
@@ -218,33 +163,38 @@ void logout() {
 void query_player() {
 	// drive DRM
 	send_command(QUERY_PLAYER);
-	while (c->drm_state == STOPPED)
-		continue; // wait for DRM to start working
-	while (c->drm_state == WORKING)
-		continue; // wait for DRM to dump file
+    while (c->drm_state == STOPPED) continue; // wait for DRM to start working
+    while (c->drm_state == WORKING) continue; // wait for DRM to dump file
 
-	// print query results
-	std::cout << "Regions: " << q_region_lookup(c->query, 0);
-	for (int i = 1; i < c->query.num_regions; i++) {
-		std::cout << ", " << q_region_lookup(c->query, i);
-	}
-	std::cout << "\r\n";
+    // print query results
+    std::string buffer((char *) q_region_lookup(c->query, 0));
+    std::cout << "Regions: " << buffer;
 
-	std::cout << "Authorized users: ";
-	if (c->query.num_users) {
-		std::cout << q_user_lookup(c->query, 0);
-		for (int i = 1; i < c->query.num_users; i++) {
-			std::cout << ", " << q_user_lookup(c->query, i);
-		}
-	}
-	std::cout << "\r\n";
+    for (int i = 1; i < c->query.num_regions; i++) {
+    	buffer = std::string((char *) q_region_lookup(c->query, i));
+        std::cout << ", " << buffer;
+    }
+    std::cout << std::endl;
+
+    std::cout << "Authorized users: ";
+    if (c->query.num_users) {
+        buffer = std::string((char *)q_user_lookup(c->query, 0));
+        std::cout << buffer;
+        for (int i = 1; i < c->query.num_users; i++) {
+        	buffer = std::string((char *)q_user_lookup(c->query, i));
+            std::cout << ", " << buffer;
+        }
+    }
+    std::cout << std::endl;
 }
 
 //done
 // queries the DRM about a song
 void query_song(std::string song_name) {
+	// Char pointers casted to remove volatile
+
 	// load the song into the shared buffer
-	if (!load_file(song_name, &((cmd_channel *)c)->song)) {
+	if (!load_file(song_name, (songStruct *) &(c->song))) {
 		std::cerr << "Failed to load song!\r\n";
 		return;
 	}
@@ -258,23 +208,27 @@ void query_song(std::string song_name) {
 
 	// print query results
 
-	std::cout << "Regions: " << q_region_lookup(c->query, 0);
+	std::string buffer((char *)q_region_lookup(c->query, 0));
+	std::cout << "Regions: " << buffer;
 	for (int i = 1; i < c->query.num_regions; i++) {
-		std::cout << ", " << q_region_lookup(c->query, i);
+		buffer = std::string((char *)q_region_lookup(c->query, i));
+		std::cout << ", " << buffer;
 	}
-	std::cout << "\r\n";
+	std::cout << std::endl;
 
-	std::cout << "Owner: " << ((cmd_channel *) c)->query.owner;
-	std::cout << "\r\n";
+	buffer = std::string((char *)c->query.owner);
+	std::cout << "Owner: " << buffer << std::endl;
 
 	std::cout << "Authorized users: ";
 	if (c->query.num_users) {
-		std::cout << q_user_lookup(c->query, 0);
+		buffer = std::string((char *)q_user_lookup(c->query, 0));
+		std::cout << buffer;
 		for (int i = 1; i < c->query.num_users; i++) {
-			std::cout << ", " << q_user_lookup(c->query, i);
+			buffer = std::string((char *)q_user_lookup(c->query, i));
+			std::cout << ", " << buffer;
 		}
 	}
-	std::cout << "\r\n";
+	std::cout << std::endl;
 }
 
 //done
@@ -290,19 +244,17 @@ void share_song(std::string song_name, std::string& username) {
 	}
 
 	// load the song into the shared buffer
-	if (!load_file(song_name, &((cmd_channel *)c)->song)) {
+	if (!load_file(song_name, (songStruct *) &(c->song))) {
 		std::cerr << "Failed to load song!\r\n";
 		return;
 	}
 
-	username.copy(((cmd_channel *)c)->username, USERNAME_SZ, 0);
+	username.copy((char *) c->username, USERNAME_SZ, 0);
 
 	// drive DRM
 	send_command(SHARE);
-	while (c->drm_state == STOPPED)
-		continue; // wait for DRM to start working
-	while (c->drm_state == WORKING)
-		continue; // wait for DRM to share song
+	while (c->drm_state == STOPPED) continue; // wait for DRM to start working
+	while (c->drm_state == WORKING) continue; // wait for DRM to share song
 
 	// request was rejected if WAV length is 0
 	length = c->song.wav_size;
@@ -345,7 +297,7 @@ int play_song(std::string song_name) {
 	std::string arg2 = "";
 
 	// load song into shared buffer
-	if (!load_file(song_name, &((cmd_channel *)c)->song)) {
+	if (!load_file(song_name, (songStruct*) &(c->song))) {
 		std::cerr << "Failed to load song!\r\n";
 		return 0;
 	}
@@ -359,7 +311,7 @@ int play_song(std::string song_name) {
 	while (1) {
 		// get a valid command
 		do {
-			print_prompt_msg(song_name);
+			print_prompt_msg(song_name.c_str());
 			//fgets(usr_cmd, USR_CMD_SZ, stdin);
 			std::getline(std::cin, usr_cmd);
 
@@ -423,7 +375,7 @@ void digital_out(std::string song_name) {
 	//not sure about converting this code to C++
 
 	// load file into shared buffer
-	if (!load_file(song_name, &((cmd_channel *)c)->song)) {
+	if (!load_file(song_name, (songStruct *) &(c->song))) {
 		std::cout << "Failed to load song!\r\n";
 		return;
 	}
@@ -469,6 +421,9 @@ int main(int argc, char** argv) {
 	std::string cmd;
 	std::string arg1 = "";
 	std::string arg2 = "";
+
+	// Check cmd_channel size
+	printf("CMD_CHANNEL SIZE: %lu\r\n", sizeof(cmd_channel));
 
 	// open command channel
 	mem = open("/dev/uio0", O_RDWR);
