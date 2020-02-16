@@ -69,10 +69,10 @@ To build the reference design for the first time, follow these steps:
 7.  Run `./protectSong --region-list "United States" --region-secrets-path global_provisioning/region.secrets --outfile global_provisioning/audio/demo.drm --infile ../sample-audio/Sound-Bite_One-Small-Step.wav --owner "drew" --user-secrets-path global_provisioning/user.secrets` to provision a song for the United States region, with "drew" as an owner.
 8.  Run `./createDevice --region-list "United States" "Japan" --region-secrets-path global_provisioning/region.secrets --user-list "drew" "ben" "misha" --user-secrets-path global_provisioning/user.secrets --device-dir device1`. This will create a device for the "United States" and "Japan" regions and provision the device for "drew", "ben", and "misha", allowing each of them to log in. Any output files will be put into a "device" directory.
 9.  Run the device by running `./buildDevice -p ../ -n test -bf all -secrets_dir device1/` (note that this takes a long time to run the first time you run it! Please be patient.) This will create a Vivado project called `test` and use the `device1` secrets directory.
-10. Run `./packageDevice ../boot-image/template.bif device1/miPod.bin ../mb/Cora-Z7-07S/download.bit` to create a `miPod.BIN` file with your bitstream.
+10. Run `./packageDevice ../boot-image/template.bif device1/miPod.bin device1/download.bit` to create a `miPod.BIN` file with your bitstream.
 11. Insert the SD card into the SD card reader, and insert that into your laptop.
     Ensure that this is passed through to the VM through the VirtualBox USB options
-12. Run the `./deployDevice /dev/sdb ../BOOT.BIN global_provisioning/audio/ ../mb/miPod/Debug/miPod ../boot-image/image.ub --mipod-bin-path device1/miPod.bin` script.
+12. Run the `./deployDevice /dev/sdb ../BOOT.BIN global_provisioning/audio/ device1/miPod ../boot-image/image.ub --mipod-bin-path device1/miPod.bin` script.
 13. Remove the SD card and place it into the board.
 14. Ensure that the jumper is connecting both pins of JP2 (this allows the device to boot from the SD card)
 15. Connect the Cora board to the computer. Ensure that the board (Digilent Adept USB Device) is passed through to the VM.
