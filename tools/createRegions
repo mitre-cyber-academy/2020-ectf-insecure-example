@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
+#needs to match the location of the python interpreter in vagrant
+
 """
 Description: Generates system wide secrets containing all potential regions
 Use: Once per ecosystem of devices
 """
+
 import json
+from random import randint
 from argparse import ArgumentParser
 
+CHARACTERLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+RegionIdList = []
 
 def main(region_dict, file_name):
     try:
@@ -27,9 +33,37 @@ def get_args():
     args = parser.parse_args()
     return args.region_list, args.outfile
 
+def random_id_generator():
+    """randomizes the id of a region into 8 digit, alpha-numeruc characters based on CHARACTERLIST"""
+    run = True
+    while(run):
+        randomized_id = CHARACTERLIST[randint(0, len(CHARACTERLIST) - 1)]
+
+        index = 1
+        while(index < 8):
+            randomized_id = randomized_id + CHARACTERLIST[randint(0, len(CHARACTERLIST) - 1)]
+            index += 1
+        
+        if(not(len(RegionIdList) == 0)):
+            for x in RegionIdList:
+
+                if(randomized_id == x):
+                    break;
+
+                elif(x == RegionIdList[len(RegionIdList) - 1]):
+                    run = False
+                    break;
+
+        else:
+            run = False
+        """"Checks if the Region ID has already been used and re-does the randomization if so"""
+        
+        
+    RegionIdList.append(randomized_id)
+    return randomized_id
 
 if __name__ == '__main__':
     region_list, outfile = get_args()
     print("generating system specific secrets")
-    regions = {region: num for num, region in enumerate(region_list)}  # Create region IDs based on increasing integers
+    regions = {region: random_id_generator() for region, region in enumerate(region_list)} #Creates random region IDs
     main(regions, outfile)
