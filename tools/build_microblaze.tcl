@@ -27,18 +27,43 @@ set pl_sysdef "$dev_path/pl/proj/$project_name/$project_name.runs/impl_1/system_
 set mb_hdf "$worksp/system_wrapper.hdf"
 set mipod "$dev_path/miPod"
 
-file mkdir $pl_sdk
+puts "####### Script variables set ########\n"
+
+if {[catch {file mkdir $pl_sdk} errmsg]} {
+    puts "$pl_sdk already exists"
+}
+
 file copy -force $pl_sysdef $mb_hdf
+
+puts "Setting workspace\n"
 
 setws $worksp
 
-importprojects $worksp
-importprojects $mipod
+puts "####### Attempting project imports ########\n"
+
+if {[catch {importprojects $worksp} errmsg]} {
+    puts "Already imported $worksp"
+}
+
+if {[catch {deleteprojects -name "miPod"} errmsg]} {
+    puts "$mipod not yet added"
+}
+
+if {[catch {importprojects $mipod} errmsg]} {
+    puts "Already imported $mipod"
+}
+
+#file delete -force "$worksp/miPod"
+#exec ln -sv $miPod "$worksp/miPod"
+
+puts "\n####### Creating Project hw ########\n"
 
 # only need if doesn't already exist
 if {[catch {createhw -name $project_name -hwspec "$worksp/system_wrapper.hdf"} errmsg]} {
     puts "Already created the project hw"
 }
+
+puts "\n####### Building Microblaze ########\n"
 
 projects -clean
 projects -build

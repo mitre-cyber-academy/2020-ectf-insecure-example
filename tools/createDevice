@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 
 
 def main(region_names, user_names, user_secrets, region_secrets, device_dir):
-    file_name = "device_secrets.h"
+    file_name = "device_secrets"
 
     # create device directory
     try:

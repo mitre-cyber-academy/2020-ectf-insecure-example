@@ -37,9 +37,9 @@ from combineBitstream import combine_bitstream
 build_flags = ["cs", "cp", "gb", "bm", "cb", "all"]
 proj_name = "cora_z7_07s"
 default_bif = "output.bif"
-input_secrets = "device_secrets.h"
+input_secrets = "device_secrets"
 output_secrets = "secrets.h"
-secrets_dir = ""
+device_dir = ""
 
 # e.g. /media/sf_Vagrant/2020-ectf/
 dev_path = ""
@@ -54,42 +54,45 @@ vagrant_vivado_path = "/opt/Xilinx/Vivado/2017.4/settings64.sh"
 xsct = "/opt/Xilinx/SDK/2017.4/bin/xsct"
 vivado_batch = "vivado -mode batch -source "
 
-def cpy_secrets(secrets_dir, dev_path_mb):
+def cpy_secrets(device_dir, dev_path_mb):
     """ Copy secrets file to /mb/drm_audio_fw/src/secrets.h """
 
     try:
         mb_cpy = dev_path_mb + "/drm_audio_fw/src/" + output_secrets
-        copy2(secrets_dir, mb_cpy)
-        print("Copied %s to\n %s" % (secrets_dir, mb_cpy))
+        secrets = device_dir + "/" + input_secrets
+        copy2(secrets, mb_cpy)
+        print("Copied %s to\n %s" % (secrets, mb_cpy))
 
     except Exception as err:
-        print("Error copying %s to %s: {%s}" % (secrets_dir, mb_cpy, err))
+        print("Error copying %s to %s: {%s}" % (secrets, mb_cpy, err))
 
 def verify_secrets(secrets_directory):
     """ Helper containing verify -secrets_dir arg """
-    global secrets_dir
+    global device_dir
 
     if not secrets_directory:
-        print ("Please provide a filepath to the dir secrets is in [-secrets_dir]")
+        print ("Please provide a filepath to the directory containg device files [-device_dir]")
         sys.exit(1)
 
     else:
-        secrets_dir = secrets_directory + "/" + input_secrets
+        device_dir = secrets_directory
+        secrets = secrets_directory + "/" + input_secrets
 
-        if (not os.path.exists(secrets_dir)):
-            print("Secrets does not exist at filepath {%s} given" % secrets_directory)
+        if (not os.path.exists(secrets)):
+            print("The given filepath {%s} does not contain the expected device files" % secrets_directory)
             sys.exit(1)
         else:
             #cpy_secrets(secrets_dir, dev_path_mb)
             return True
 
 def main():
-    global dev_path, proj_name, path_to_proj_tcl, path_to_bits_tcl, bif_output, dev_path_mb, secrets_dir
+    global dev_path, proj_name, path_to_proj_tcl, path_to_bits_tcl, bif_output, dev_path_mb, device_dir
 
     parser = argparse.ArgumentParser(description="""
     buildDevice requires the following:
     \t dev_path: The file path to the repo root of 2020-ectf
     \t proj_name: Optional variable to custom name Vivado project
+    \t secrets_dir: Filepath to directory storing device files, including device_secrets
     \t build_flag:
          [cs]: copy device_secrets.h to microblaze dir
          [cp]: create project
@@ -101,8 +104,8 @@ def main():
 
     parser.add_argument("-p", "--dev_path", required=True, help="Path to 2020-ectf repo root")
     parser.add_argument("-n", "--proj_name", help="Vivado project name")
-    parser.add_argument("-bf", "--build_flag", required=True, type=lambda t:t.lower(), choices=build_flags, default="all")
-    parser.add_argument("-secrets_dir", "--secrets_directory", help="Filepath to dir containing secrets file")
+    parser.add_argument("-bf", "--build_flag", type=lambda t:t.lower(), choices=build_flags, default="all")
+    parser.add_argument("-secrets_dir", "--secrets_directory", help="Filepath to directory storing device files")
     args = parser.parse_args()
 
     dev_path = args.dev_path
@@ -118,6 +121,7 @@ def main():
     path_to_proj_tcl = dev_path_pl + "/proj/create_project.tcl"
     path_to_bits_tcl = dev_path_pl + "/proj/gen_bitstream.tcl"
     bif_outpath = dev_path_mb + "/BOOT.bin"
+    run_dir = os.getcwd()
 
     if opt_proj_name:
         proj_name = opt_proj_name
@@ -131,7 +135,7 @@ def main():
         if verify_secrets(args.secrets_directory):
 
             print("\nProceeding to Copy Secrets File:\n")
-            cpy_secrets(secrets_dir, dev_path_mb)
+            cpy_secrets(device_dir, dev_path_mb)
             path_util(dev_path_pl)
 
             print("\nProceeding to Create Project {%s}:\n" % proj_name)
@@ -141,26 +145,32 @@ def main():
             print("Please be warned this will take a while a long time.\n")
             gen_bitstream(dev_path_pl, proj_name, vivado_batch, path_to_bits_tcl)
 
+            path_util(run_dir)
+
             print("\nProceeding to Build Microblaze:\n")
-            build_microblaze(xsct, proj_name, dev_path_tools, dev_path)
+            build_microblaze(xsct, proj_name, dev_path_tools, dev_path, device_dir)
 
             print("\nProceeding to Combine Bitstream:\n")
-            combine_bitstream(xsct, dev_path_tools, dev_path)
+            combine_bitstream(xsct, dev_path_tools, dev_path, device_dir, proj_name)
 
     else:
         if args.build_flag == "cs":
             if verify_secrets(args.secrets_directory):
-                cpy_secrets(secrets_dir, dev_path_mb)
+                cpy_secrets(device_dir, dev_path_mb)
         elif args.build_flag == "cp":
             path_util(dev_path_pl)
             create_project(vivado_batch, path_to_proj_tcl, proj_name)
+            path_util(run_dir)
         elif args.build_flag == "gb":
             path_util(dev_path_pl)
             gen_bitstream(dev_path_pl, proj_name, vivado_batch, path_to_bits_tcl)
+            path_util(run_dir)
         elif args.build_flag == "bm":
-            build_microblaze(xsct, proj_name, dev_path_tools, dev_path)
+            if verify_secrets(args.secrets_directory):
+                build_microblaze(xsct, proj_name, dev_path_tools, dev_path, device_dir)
         elif args.build_flag == "cb":
-            combine_bitstream(xsct, dev_path_tools, dev_path)
+            if verify_secrets(args.secrets_directory):
+                combine_bitstream(xsct, dev_path_tools, dev_path, device_dir, proj_name)
 
 if __name__ == '__main__':
     main()
