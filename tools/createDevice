@@ -49,10 +49,10 @@ def main(region_names, user_names, user_secrets, region_secrets, device_dir):
 
 #define NUM_REGIONS {len(region_secrets)}
 const char *REGION_NAMES[] = {{ {", ".join(['"' + r + '"' for r in region_secrets])} }};
-const u8 REGION_IDS[] = {{ {", ".join([str(r) for r in region_secrets.values()])} }};
+const char *REGION_IDS[] = {{ {", ".join(['"' + r + '"' for r in region_secrets.values()])} }};
 
 #define NUM_PROVISIONED_REGIONS {len(region_names)}
-const u8 PROVISIONED_RIDS[] = {{ {", ".join(rids)} }};
+const char *PROVISIONED_RIDS[] = {{ {", ".join(['"' + r + '"' for r in rids])} }};
 
 #define NUM_USERS {len(user_secrets)}
 const char *USERNAMES[] = {{ {", ".join(['"' + u + '"' for u in user_secrets])} }};
