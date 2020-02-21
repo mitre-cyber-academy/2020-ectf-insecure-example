@@ -16,6 +16,7 @@
 #include "constants.h"
 #include "sleep.h"
 
+#include "song_util.h"
 
 //////////////////////// GLOBALS ////////////////////////
 
@@ -504,6 +505,8 @@ int main() {
     memset((void*)c, 0, sizeof(cmd_channel));
 
     mb_printf("Audio DRM Module has Booted\n\r");
+
+    decrypt_song();
 
     // Handle commands forever
     while(1) {

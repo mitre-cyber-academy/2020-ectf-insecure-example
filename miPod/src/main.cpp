@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <linux/gpio.h>
 #include <string.h>
+#include <openssl/ssl.h>
 
 //c++ includes
 #include <iostream>
@@ -389,6 +390,7 @@ void digital_out(std::string song_name) {
 
 	// open digital output file
 	int written = 0, wrote, length = c->song.file_size + 8;
+	sprintf(fname, "%s.dout", song_name);
 	int fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC);
 	if (fd == -1) {
 		std::cerr << "Failed to open file! Error = " << (errno) << std::endl;
@@ -423,7 +425,8 @@ int main(int argc, char** argv) {
 	std::string arg2 = "";
 
 	// Check cmd_channel size
-	printf("CMD_CHANNEL SIZE: %lu\r\n", sizeof(cmd_channel));
+	std::cout << "CMD_CHANNEL SIZE: " << sizeof(cmd_channel) << std::endl;
+	std::cout << "Checking openssl version: " << SSLeay_version(SSLEAY_VERSION) << std::endl;
 
 	// open command channel
 	mem = open("/dev/uio0", O_RDWR);

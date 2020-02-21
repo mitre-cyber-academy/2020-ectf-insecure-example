@@ -20,6 +20,9 @@
 							<targetPlatform binaryParser="com.xilinx.sdk.managedbuilder.XELF.arm.a53.x32.linux" id="xilinx.armv7.linux.target.gnu.base.1699574533" isAbstract="false" name="Debug Platform" superClass="xilinx.armv7.linux.target.gnu.base"/>
 							<builder buildPath="${workspace_loc:/test}/Debug" enableAutoBuild="true" id="xilinx.gnu.armv7.linux.toolchain.builder.789854480" keepEnvironmentInBuildfile="false" name="GNU make" superClass="xilinx.gnu.armv7.linux.toolchain.builder"/>
 							<tool id="xilinx.gnu.armv7.linux.c.toolchain.assembler.1037997761" name="ARM v7 Linux gcc assembler" superClass="xilinx.gnu.armv7.linux.c.toolchain.assembler">
+								<option id="xilinx.gnu.both.asm.option.include.paths.1947448627" name="Include Paths (-I)" superClass="xilinx.gnu.both.asm.option.include.paths" valueType="includePath">
+									<listOptionValue builtIn="false" value="/usr/arm-linux-gnueabihf/include"/>
+								</option>
 								<inputType id="xilinx.gnu.assembler.input.542021585" superClass="xilinx.gnu.assembler.input"/>
 							</tool>
 							<tool id="xilinx.gnu.armv7.linux.c.toolchain.compiler.1335192935" name="ARM v7 Linux gcc compiler" superClass="xilinx.gnu.armv7.linux.c.toolchain.compiler">
@@ -29,11 +32,23 @@
 							<tool id="xilinx.gnu.armv7.linux.cxx.toolchain.compiler.207933843" name="ARM v7 Linux g++ compiler" superClass="xilinx.gnu.armv7.linux.cxx.toolchain.compiler">
 								<option defaultValue="gnu.c.optimization.level.none" id="xilinx.gnu.compiler.option.optimization.level.1225497116" name="Optimization Level" superClass="xilinx.gnu.compiler.option.optimization.level" valueType="enumerated"/>
 								<option id="xilinx.gnu.compiler.option.debugging.level.831834207" name="Debug Level" superClass="xilinx.gnu.compiler.option.debugging.level" value="gnu.c.debugging.level.max" valueType="enumerated"/>
+								<option id="xilinx.gnu.compiler.dircategory.includes.1459519983" name="Include Paths" superClass="xilinx.gnu.compiler.dircategory.includes" valueType="includePath">
+									<listOptionValue builtIn="false" value="/usr/arm-linux-gnueabihf/include"/>
+								</option>
+								<option id="xilinx.gnu.compiler.misc.other.356716395" name="Other flags" superClass="xilinx.gnu.compiler.misc.other" value="-c -fmessage-length=0 -MT&quot;$@&quot; -lssl -lcrypto" valueType="string"/>
 								<inputType id="xilinx.gnu.armv7.linux.cxx.compiler.input.1577333927" name="C++ source files" superClass="xilinx.gnu.armv7.linux.cxx.compiler.input"/>
 							</tool>
 							<tool id="xilinx.gnu.armv7.linux.toolchain.archiver.1614155813" name="ARM v7 Linux archiver" superClass="xilinx.gnu.armv7.linux.toolchain.archiver"/>
 							<tool id="xilinx.gnu.armv7.linux.c.toolchain.linker.1015452566" name="ARM v7 Linux gcc linker" superClass="xilinx.gnu.armv7.linux.c.toolchain.linker"/>
 							<tool id="xilinx.gnu.armv7.linux.cxx.toolchain.linker.1964705326" name="ARM v7 Linux g++ linker" superClass="xilinx.gnu.armv7.linux.cxx.toolchain.linker">
+								<option id="xilinx.gnu.c.link.option.libs.80297767" name="Libraries (-l)" superClass="xilinx.gnu.c.link.option.libs" valueType="libs">
+									<listOptionValue builtIn="false" value="ssl"/>
+									<listOptionValue builtIn="false" value="crypto"/>
+								</option>
+								<option id="xilinx.gnu.c.link.option.paths.1094935363" name="Library search path (-L)" superClass="xilinx.gnu.c.link.option.paths" valueType="libPaths">
+									<listOptionValue builtIn="false" value="/usr/arm-linux-gnueabihf/lib"/>
+									<listOptionValue builtIn="false" value="/usr/lib"/>
+								</option>
 								<inputType id="xilinx.gnu.linker.input.363139948" superClass="xilinx.gnu.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
 									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
