@@ -105,7 +105,7 @@ def copy_boot(device, boot_path, mipod_bin_path=None):
         print("    %s-> %s" % (boot_path, os.path.join(device + "1", BOOT_FILE)))
         copy_file(boot_path, os.path.join(BOOT_MNT, BOOT_FILE))
         if mipod_bin_path is not None:
-                print("    %s-> %s" % (boot_path, os.path.join(device + "1", MIPOD_BIN_FILE)))
+                print("    %s-> %s" % (mipod_bin_path, os.path.join(device + "1", MIPOD_BIN_FILE)))
                 copy_file(mipod_bin_path, os.path.join(BOOT_MNT, MIPOD_BIN_FILE))
     except IOError as e:
         print(e)
