@@ -1,25 +1,11 @@
 #!/usr/bin/env python3
-#needs to match the location of the python interpreter in vagrant
-
 """
 Description: Generates system wide secrets containing all potential regions
 Use: Once per ecosystem of devices
 """
-
 import json
-from random import randint
 from argparse import ArgumentParser
 
-CHARACTERLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-"""
-Description: Main function that outputs a json file with a dictionary of regions with region Id's
-
-:param region_dict: Dictionary of regions and randomized region Id's
-:parm file_name: Outputfile name/path to which the Region Dictionary should be written to
-
-:return: Returns a json file with region dictionary with random Id's
-"""
 
 def main(region_dict, file_name):
     try:
@@ -31,12 +17,9 @@ def main(region_dict, file_name):
     json.dump(region_dict, secrets)
     secrets.close()
 
-"""
-Description: declares the 2 arguments that need to be passed to create the region dictionary
 
-:return: returns the list of user gnerated regions and the user specified file location
-"""
 def get_args():
+    """gets arguments from command line"""
     parser = ArgumentParser(description='main interface to provision system')
     parser.add_argument('--region-list', help='list of regions for provisioning purposes',
                         required=True, nargs='+')
@@ -44,41 +27,9 @@ def get_args():
     args = parser.parse_args()
     return args.region_list, args.outfile
 
-"""
-Description: randomizes the id of a region into 8 digit, alpha-numeruc characters based on CHARACTERLIST
-
-:return: Returns an 8-digit, randomized string.
-"""
-
-def random_id_generator():
-    RegionIdList = []
-    run = True
-    while(run):
-        randomized_id = CHARACTERLIST[randint(0, len(CHARACTERLIST) - 1)] #initialization of randmized_id with with CHARACTERLIST
-
-        index = 1
-        while(index < 8):
-            randomized_id = randomized_id + CHARACTERLIST[randint(0, len(CHARACTERLIST) - 1)]
-            index += 1
-        
-        if(not(len(RegionIdList) == 0)): 
-            for x in RegionIdList:
-
-                if(randomized_id == x): #ensures that the newly randomly generated id does not already exist, re-does randomization if so
-                    break;
-
-                elif(x == RegionIdList[len(RegionIdList) - 1]):
-                    run = False
-                    break;
-        
-        else:
-            run = False
-        
-    RegionIdList.append(randomized_id)
-    return randomized_id
 
 if __name__ == '__main__':
     region_list, outfile = get_args()
     print("generating system specific secrets")
-    regions = {region: random_id_generator() for region, region in enumerate(region_list)} #Creates random region ID dictionary
+    regions = {region: num for num, region in enumerate(region_list)}  # Create region IDs based on increasing integers
     main(regions, outfile)

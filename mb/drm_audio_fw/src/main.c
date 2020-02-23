@@ -543,7 +543,7 @@ int main() {
                 break;
             }
 
-            // reset statuses and sleep to allowe player to recognize WORKING state
+            // reset statuses and sleep to allow player to recognize WORKING state
             strcpy((char *)c->username, s.username);
             c->login_status = s.logged_in;
             usleep(500);

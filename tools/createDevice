@@ -6,11 +6,31 @@ Use: Once per device
 import os
 import json
 from argparse import ArgumentParser
+import binascii
+import secrets
+import base64
 
 
 
 def main(region_names, user_names, user_secrets, region_secrets, device_dir):
     file_name = "device_secrets"
+    keys_loc = "keys.json"
+
+    try:
+        keys_file = open(keys_loc, "w")
+    except Exception as e:
+        print("Could not open {keys_loc}: {e}".format(keys_loc=keys_loc, e=e))
+
+    try:
+        key = secrets.token_hex(32)     # 256-bits
+        iv = secrets.token_hex(12)      # 96-bits
+        keys = {
+            "key": key,
+            "iv": iv
+        }
+        json.dump(keys, keys_file)
+    except Exception as e:
+        print("Could not write json to {keys_loc}: {e}".format(keys_loc=keys_loc, e=e))
 
     # create device directory
     try:
@@ -46,22 +66,17 @@ def main(region_names, user_names, user_secrets, region_secrets, device_dir):
     device_secrets.write(f'''
 #ifndef SECRETS_H
 #define SECRETS_H
-
 #define NUM_REGIONS {len(region_secrets)}
 const char *REGION_NAMES[] = {{ {", ".join(['"' + r + '"' for r in region_secrets])} }};
-const char *REGION_IDS[] = {{ {", ".join(['"' + r + '"' for r in region_secrets.values()])} }};
-
+const u8 REGION_IDS[] = {{ {", ".join([str(r) for r in region_secrets.values()])} }};
 #define NUM_PROVISIONED_REGIONS {len(region_names)}
-const char *PROVISIONED_RIDS[] = {{ {", ".join(['"' + r + '"' for r in rids])} }};
-
+const u8 PROVISIONED_RIDS[] = {{ {", ".join(rids)} }};
 #define NUM_USERS {len(user_secrets)}
 const char *USERNAMES[] = {{ {", ".join(['"' + u + '"' for u in user_secrets])} }};
 const u8 USER_IDS[] = {{ {", ".join([str(user_secrets[u]['id']) for u in user_names])} }};
-
 #define NUM_PROVISIONED_USERS {len(user_names)}
 const u8 PROVISIONED_UIDS[] = {{ {", ".join(uids)} }};
 const char *PROVISIONED_PINS[] = {{ {", ".join(['"' + user_secrets[u]['pin'] + '"' for u in user_names])} }};
-
 #endif // SECRETS_H
 ''')
 
