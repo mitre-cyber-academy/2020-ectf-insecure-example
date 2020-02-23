@@ -71,18 +71,26 @@ class ProtectedSong(object):
         chunk_time = 30         # 30s
         bytes_per_sample = 2    # 2 bytes sampled
         chunk_size = sample_rate * chunk_time * bytes_per_sample
-        encoder = nacl.encoding.RawEncoder
+        hash_byte_size = 12     # Take 12 bytes of a 256 bit hash
+        wave_header_size = 44   # http://soundfile.sapp.org/doc/WaveFormat/
+        aad_size = 4            # Use 4 bytes to store aad size
 
-        encrypted_file_size = 0
+        encoder = nacl.encoding.RawEncoder
+        encrypted_file_size = 0 # Track total file size
 
         print("Setting chunksize to " + str(chunk_size) + " bytes")
 
+        # Open song for reading raw data
         song = open(self.song, "rb")
-        wav_header = song.read(44)
-        song_info_size = int.from_bytes(wav_header[-4:], byteorder='little')
+
+        # Read wav file header
+        wave_header = song.read(wave_header_size)
+
+        # The last 4 bytes of a wav file header includes the song size
+        song_info_size = int.from_bytes(wave_header[-4:], byteorder='little')
         print("Song size: " + str(song_info_size))
 
-        # Calculate # of chunks to read
+        # Calculate number of chunks to read
         chunk_to_read = math.floor(song_info_size / chunk_size)
         print("Chunks to read: " + str(chunk_to_read))
 
@@ -100,21 +108,25 @@ class ProtectedSong(object):
         iv = bytes.fromhex(keys_file["iv"])
 
         print("Starting encrypt song")
-        
-        header_hash = nacl.hash.sha256(wav_header, encoder=encoder)
+
+        # Calculate header hash for nonce
+        header_hash = nacl.hash.sha256(wave_header, encoder=encoder)
         print("Header Hash: " + str(header_hash))
 
-        nonce = header_hash[:12]
+        # Take first 12 bytes of header hash
+        nonce = header_hash[:hash_byte_size]
         print("Nonce: " + str(nonce))
 
+        # Open encrypted song file pointer
         encrypted_song = open("song.blr", "wb")
         
+        # Write the 12 bytes of the header hash
         encrypted_song.write(nonce)
 
         aad = b"wave_header"
 
         # Encrypt Wav Header
-        encrypted_header = b.crypto_aead_chacha20poly1305_ietf_encrypt(wav_header, aad, nonce, key)
+        encrypted_header = b.crypto_aead_chacha20poly1305_ietf_encrypt(wave_header, aad, nonce, key)
 
         encrypted_file_size += len(encrypted_header)
 
@@ -132,7 +144,7 @@ class ProtectedSong(object):
         metadata_hash = nacl.hash.sha256(self.metadata, encoder=encoder)
         print("Metadata Hash: " + str(metadata_hash))
 
-        nonce = metadata_hash[:12]
+        nonce = metadata_hash[:hash_byte_size]
 
         encrypted_song.write(nonce)
 
@@ -148,6 +160,7 @@ class ProtectedSong(object):
         # Write encrypted metadata
         encrypted_song.write(encrypted_metadata)
 
+        # Add 1 since range is exclusive
         for i in range(1, chunk_to_read + 1):
             print("Working on Chunk " + str(i))
             thirty_seconds = song.read(chunk_size)
@@ -155,13 +168,13 @@ class ProtectedSong(object):
             chunk_hash = nacl.hash.sha256(thirty_seconds, encoder=encoder)
             print("Chunk Hash: " + str(chunk_hash))
 
-            nonce = chunk_hash[:12]
+            nonce = chunk_hash[:hash_byte_size]
 
             encrypted_song.write(nonce)
             
             print("Nonce: " + str(nonce))
 
-            aad = int.to_bytes(i, 4, 'little')
+            aad = int.to_bytes(i, aad_size, 'little')
 
             encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(thirty_seconds, aad, nonce, key)
             print("Encrypted Chunk Size: " + str(len(encrypted_chunk)))
@@ -179,13 +192,13 @@ class ProtectedSong(object):
         chunk_hash = nacl.hash.sha256(thirty_seconds, encoder=encoder)
         print("Chunk Hash: " + str(chunk_hash))
 
-        nonce = chunk_hash[:12]
+        nonce = chunk_hash[:hash_byte_size]
 
         encrypted_song.write(nonce)
 
         print("Nonce: " + str(nonce))
 
-        aad = int.to_bytes(chunk_to_read + 1, 4, 'little')
+        aad = int.to_bytes(chunk_to_read + 1, aad_size, 'little')
         encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(thirty_seconds, aad, nonce, key)
 
         encrypted_file_size += len(encrypted_chunk)
@@ -200,6 +213,8 @@ class ProtectedSong(object):
         encrypted_song.close()
 
         song.close()
+
+        print("Encryption Success")
 
 def create_metadata(regions, user, user_secret_location, region_info):
     """Returns a byte string formatted as follows:
