@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 Description: Creates user specific secrets
 Use: Once per user
@@ -8,17 +9,24 @@ import json
 from argparse import ArgumentParser
 
 
-def main(user_list, outfile):
-    """writes user secrets to json file
-    args:
+
+"""
+Writes user secrets to json file
+
+    Args:
         users_ (string): string of users and pins seperated by colons e.g. user1:123456789
-        outfile (string): name of file to write user_secrets to """
+        outfile (string): name of file to write user_secrets to
+"""
+def main(user_list, outfile):
+
+    # Open outfile in write mode
     try:
-        secrets = open(outfile, "w")
+        secrets = open(outfile[0], mode="w")
     except Exception as e:
         print("Unable to open secrets file: %s" % (e,))
         return 0
 
+    
     try:
         user_dict = {user.split(":")[0]: {"pin": user.split(":")[1], "id": num} for num, user in enumerate(user_list)}
     except IndexError:
@@ -30,18 +38,42 @@ def main(user_list, outfile):
     secrets.close()
 
 
+
+"""
+Gets arguments from command line
+
+    Returns:
+        user_list A list of users, hashes of salted passwords and passwords
+        outfile A file path for the eventual file to be written containing user_list
+"""
 def get_args():
-    """gets arguments from command line"""
-    parser = ArgumentParser(description='main interface to provision system')
+    # Initialize Argument Parser
+    parser = ArgumentParser(description='Generates json encoded file containing usernames, hashed salted passwords and salts.')
+
+    # Add --user-list argument to store an arbitrary number of usernames and pins
     parser.add_argument('--user-list', nargs='+',
-                        help='list of users and pins seperated by a colon: "user1:12345678 user2:12345679" ',
+                        help='List of users and pins seperated by a colon:\nEx: "user1:12345678 user2:12345679" ',
                         required=True)
-    parser.add_argument('--outfile', help='location to save user secrets file', required=True)
+    
+    # Add --outfile argument to store a single output filepath
+    parser.add_argument('--outfile', nargs=1,
+                        help='location to save user secrets file',
+                        required=True)
+    
+    # Call to parse arguments
     args = parser.parse_args()
+
     return args.user_list, args.outfile
 
 
+
+# Treats script as a standalone and does 
 if __name__ == '__main__':
-    users, loc = get_args()
-    print("generating user specific secrets")
-    main(users, loc)
+
+    # Parse inputs and store them as variables
+    users, outfile = get_args()
+
+    # Print status message
+    print("\nGenerating user speific secrets\n\n")
+
+    main(users, outfile)
