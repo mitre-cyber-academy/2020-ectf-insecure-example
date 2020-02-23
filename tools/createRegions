@@ -7,10 +7,12 @@ Use: Once per ecosystem of devices
 """
 
 import json
-from random import randint
+from secrets import token_hex
 from argparse import ArgumentParser
 
-CHARACTERLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+region_id_length = 6
+
 
 """
 Description: Main function that outputs a json file with a dictionary of regions with region Id's
@@ -45,21 +47,18 @@ def get_args():
     return args.region_list, args.outfile
 
 """
-Description: randomizes the id of a region into 8 digit, alpha-numeruc characters based on CHARACTERLIST
+Description: randomizes the id of a region into 8 digit hexadecimal characters
 
-:return: Returns an 8-digit, randomized string.
+:return: Returns an hexadecimal, randomized string.
 """
 
 def random_id_generator():
     RegionIdList = []
     run = True
+    randomized_id = 0
+    
     while(run):
-        randomized_id = CHARACTERLIST[randint(0, len(CHARACTERLIST) - 1)] #initialization of randmized_id with with CHARACTERLIST
-
-        index = 1
-        while(index < 8):
-            randomized_id = randomized_id + CHARACTERLIST[randint(0, len(CHARACTERLIST) - 1)]
-            index += 1
+        randomized_id = token_hex(round(region_id_length / 2))
         
         if(not(len(RegionIdList) == 0)): 
             for x in RegionIdList:
@@ -75,7 +74,7 @@ def random_id_generator():
             run = False
         
     RegionIdList.append(randomized_id)
-    return randomized_id
+    return (randomized_id)
 
 if __name__ == '__main__':
     region_list, outfile = get_args()
