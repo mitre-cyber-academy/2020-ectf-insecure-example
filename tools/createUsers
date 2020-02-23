@@ -19,12 +19,12 @@ Writes user secrets to json file
 """
 def main(user_list, outfile):
 
-    # Open outfile in write mode; returns 1 if fails
+    # Open outfile in write mode
     try:
         secrets = open(outfile, mode="w")
     except Exception as e:
         print("Unable to open secrets file: %s" % (e,))
-        return 1
+        return 0
 
     
     try:
