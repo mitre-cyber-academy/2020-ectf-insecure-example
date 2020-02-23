@@ -8,7 +8,6 @@ Use: Once per ecosystem of devices
 
 import json
 from secrets import token_hex
-from random import randint
 from argparse import ArgumentParser
 
 
