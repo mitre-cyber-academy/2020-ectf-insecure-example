@@ -35,7 +35,7 @@ typedef struct {
     char owner[USERNAME_SZ];
     char regions[MAX_REGIONS * REGION_NAME_SZ];
     char users[MAX_USERS * USERNAME_SZ];
-} query;
+} queryStruct;
 
 // simulate array of 64B names without pointer indirection
 #define q_region_lookup(q, i) (q.regions + (i * REGION_NAME_SZ))
@@ -60,7 +60,7 @@ typedef struct __attribute__((__packed__)) {
     char packing2[32];
     int wav_size;
     drm_md md;
-} song;
+} songStruct;
 
 // accessors for variable-length metadata fields
 #define get_drm_rids(d) (d.md.buf)
@@ -84,8 +84,8 @@ typedef volatile struct __attribute__((__packed__)) {
 
     // shared buffer is either a drm song or a query
     union {
-        song song;
-        query query;
+        songStruct song;
+        queryStruct query;
         char buf[MAX_SONG_SZ]; // sets correct size of cmd_channel for allocation
     };
 } cmd_channel;
