@@ -28,6 +28,19 @@
 #define print_prompt() printf(USER_PROMPT, "")
 #define print_prompt_msg(...) printf(USER_PROMPT, __VA_ARGS__)
 
+#define RID_SZ 8
+#define UID_SZ 8
+
+#define MAX_METADATA_SZ UID_SZ + (RID_SZ * MAX_REGIONS) + (MAX_USERS * UID_SZ)
+
+#define CHUNK_TIME_SEC 30
+#define AUDIO_SAMPLING_RATE 48000
+#define BYTES_PER_SAMP 2
+#define NONCE_SIZE 12
+#define WAVE_HEADER_SIZE 44
+#define MAC_SIZE 16
+#define ENC_CHUNK_SZ (CHUNK_TIME_SEC * AUDIO_SAMPLING_RATE * BYTES_PER_SAMP) + MAC_SIZE
+
 // struct to interpret shared buffer as a query
 typedef struct {
     int num_regions;
@@ -62,6 +75,25 @@ typedef struct __attribute__((__packed__)) {
     drm_md md;
 } songStruct;
 
+typedef struct __attribute__ ((__packed__)) {
+	unsigned char nonce[NONCE_SIZE];
+	unsigned char wave_header[WAVE_HEADER_SIZE];
+	unsigned char tag[MAC_SIZE];
+} encryptedWaveheader;
+
+typedef struct __attribute__ ((__packed__)) {
+	unsigned char metadata_size;
+	unsigned char nonce[NONCE_SIZE];
+	unsigned char metadata[MAX_METADATA_SZ];
+	unsigned char tag[MAC_SIZE];
+} encryptedMetadata;
+
+typedef struct __attribute__ ((__packed__)) {
+	unsigned char nonce[NONCE_SIZE];
+	unsigned char data[ENC_CHUNK_SZ];
+	unsigned char tag[MAC_SIZE];
+} encryptedSongChunk;
+
 // accessors for variable-length metadata fields
 #define get_drm_rids(d) (d.md.buf)
 #define get_drm_uids(d) (d.md.buf + d.md.num_regions)
@@ -69,8 +101,8 @@ typedef struct __attribute__((__packed__)) {
 
 
 // shared buffer values
-enum commands { QUERY_PLAYER, QUERY_SONG, LOGIN, LOGOUT, SHARE, PLAY, STOP, DIGITAL_OUT, PAUSE, RESTART, FF, RW };
-enum states   { STOPPED, WORKING, PLAYING, PAUSED };
+enum commands { QUERY_PLAYER, QUERY_SONG, LOGIN, LOGOUT, SHARE, PLAY, STOP, DIGITAL_OUT, PAUSE, RESTART, FF, RW, READ_HEADER };
+enum states   { STOPPED, WORKING, PLAYING, PAUSED, READING_HEADER, WAITING_METADATA, READING_METADATA, READING_CHUNK, WAITING_CHUNK };
 
 
 // struct to interpret shared command channel
@@ -86,6 +118,9 @@ typedef volatile struct __attribute__((__packed__)) {
     union {
         songStruct song;
         queryStruct query;
+        encryptedWaveheader encWaveHeader;
+        encryptedMetadata encMetadata;
+        encryptedSongChunk encSongChunk;
         char buf[MAX_SONG_SZ]; // sets correct size of cmd_channel for allocation
     };
 } cmd_channel;

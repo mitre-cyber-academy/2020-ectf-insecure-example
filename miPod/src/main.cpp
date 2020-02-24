@@ -124,6 +124,29 @@ size_t load_file(std::string fname, songStruct *song_buf) {
     return sb.st_size;
 }
 
+void load_encrypted_file(std::string fname) {
+	FILE* fd;
+
+	fd = fopen(fname.c_str(), "rb");
+
+	if (fd == NULL) {
+		std::cout << "Could not open file! Error = " << (errno) << std::endl;
+		return;
+	}
+
+	fread((encryptedWaveheader *) &(c->encWaveHeader), sizeof(encryptedWaveheader), 1, fd);
+
+	fclose(fd);
+
+	send_command(READ_HEADER);
+	while (c->drm_state == STOPPED) continue; // wait for DRM to start working
+	while (c->drm_state == WORKING) continue; // wait for DRM to dump file
+
+
+	return;
+
+}
+
 //////////////////////// COMMAND FUNCTIONS ////////////////////////
 
 void login(std::string& username, std::string& pin) {
@@ -471,6 +494,8 @@ int main(int argc, char** argv) {
 				digital_out(arg1);
 			} else if (cmd == "share") {
 				share_song(arg1, arg2);
+			} else if (cmd == "check_song") {
+				load_encrypted_file(arg1);
 			} else if (cmd == "exit") {
 				std::cout << "Exiting..." << std::endl;
 				break;

@@ -1,5 +1,5 @@
 /*
- * eCTF Collegiate 2020 MicroBlaze Example Code
+  * eCTF Collegiate 2020 MicroBlaze Example Code
  * Audio Digital Rights Management
  */
 
@@ -16,7 +16,7 @@
 #include "constants.h"
 #include "sleep.h"
 
-#include "song_util.h"
+#include <bearssl.h>
 
 //////////////////////// GLOBALS ////////////////////////
 
@@ -37,6 +37,11 @@ const struct color BLUE =   {0x0000, 0x0000, 0x01ff};
 #define set_working() change_state(WORKING, YELLOW)
 #define set_playing() change_state(PLAYING, GREEN)
 #define set_paused()  change_state(PAUSED, BLUE)
+#define set_reading_header() change_state(WORKING, YELLOW)
+#define set_waiting_metadata() change_state(WORKING, YELLOW)
+#define set_reading_metadata() change_state(WORKING, YELLOW)
+#define set_waiting_chunk() change_state(WORKING, YELLOW)
+#define set_reading_chunk() change_state(WORKING, YELLOW)
 
 // shared command channel -- read/write for both PS and PL
 volatile cmd_channel *c = (cmd_channel*)SHARED_DDR_BASE;
@@ -216,6 +221,37 @@ int gen_song_md(char *buf) {
 
     return buf[0];
 }
+
+static size_t hextobin(unsigned char *dst, const char *src) {
+	size_t num;
+	unsigned acc;
+	int z;
+
+	num = 0;
+	z = 0;
+	acc = 0;
+	while (*src != 0) {
+		int c = *src++;
+		if (c >= '0' && c <= '9') {
+			c -= '0';
+		} else if (c >= 'A' && c <= 'F') {
+			c -= ('A' - 10);
+		} else if (c >= 'a' && c <= 'f') {
+			c -= ('a' - 10);
+		} else {
+			continue;
+		}
+		if (z) {
+			*dst++ = (acc << 4) + c;
+			num++;
+		} else {
+			acc = c;
+		}
+		z = !z;
+	}
+	return num;
+}
+
 
 
 
@@ -467,6 +503,85 @@ void digital_out() {
     mb_printf("Song dump finished\r\n");
 }
 
+void read_header(unsigned char key[32]) {
+	set_reading_header();
+	unsigned char nonce[NONCE_SIZE], waveHeader[WAVE_HEADER_SIZE], tag[MAC_SIZE];
+	unsigned char aad[12] = "wave_header";
+	unsigned char tag_buffer[MAC_SIZE];
+
+	memcpy(nonce, c->encWaveHeader.nonce, NONCE_SIZE);
+	memcpy(waveHeader, c->encWaveHeader.wave_header, WAVE_HEADER_SIZE);
+	memcpy(tag, c->encWaveHeader.tag, MAC_SIZE);
+
+	br_poly1305_ctmul_run(key, nonce, waveHeader, WAVE_HEADER_SIZE, aad, sizeof(aad), tag_buffer, br_chacha20_ct_run, 0);
+
+	if (memcmp(tag_buffer, tag, MAC_SIZE) == 0) {
+		mb_printf("The tags are the same!\r\n");
+		// Continue Decryption
+		set_waiting_metadata();
+	} else {
+		mb_printf("The tags are not the same :( \r\n");
+		mb_printf("Modification detected!\r\n");
+		set_stopped();
+	}
+}
+
+void read_metadata(unsigned char key[32], int metadata_size) {
+	set_reading_metadata();
+	unsigned char nonce[NONCE_SIZE], metadata[metadata_size], tag[MAC_SIZE];
+	unsigned char aad[12] = "metadata";
+	unsigned char tag_buffer[MAC_SIZE];
+
+	memcpy(nonce, c->encMetadata.nonce, metadata_size);
+	printf("Nonce size: %i", sizeof(nonce));
+	memcpy(metadata, c->encMetadata.metadata, MAX_METADATA_SZ);
+	printf("Wave header size: %i", sizeof(metadata));
+	memcpy(tag, c->encMetadata.tag, MAC_SIZE);
+
+	br_poly1305_ctmul_run(key, nonce, metadata, metadata_size, aad, sizeof(aad), tag_buffer, br_chacha20_ct_run, 0);
+
+	if (memcmp(tag_buffer, tag, MAC_SIZE) == 0) {
+		mb_printf("The tags are the same!\r\n");
+		// Continue Decryption
+		set_waiting_chunk();
+	} else {
+		mb_printf("The tags are not the same :( \r\n");
+		mb_printf("Modification detected!\r\n");
+		set_stopped();
+	}
+}
+
+void read_chunk(unsigned char key[32], int chunk_size, int chunk_num) {
+	set_reading_chunk();
+	unsigned char nonce[NONCE_SIZE], chunk[chunk_size], tag[MAC_SIZE];
+	unsigned int aad = chunk_num;
+	unsigned char tag_buffer[MAC_SIZE];
+
+	memcpy(nonce, c->encSongChunk.nonce, NONCE_SIZE);
+	printf("Nonce size: %i", sizeof(nonce));
+	memcpy(chunk, c->encSongChunk.data, chunk_size);
+	printf("Wave header size: %i", sizeof(chunk));
+	memcpy(tag, c->encSongChunk.tag, MAC_SIZE);
+
+	br_poly1305_ctmul_run(key, nonce, chunk, chunk_size, aad, sizeof(aad), tag_buffer, br_chacha20_ct_run, 0);
+
+	if (memcmp(tag_buffer, tag, MAC_SIZE) == 0) {
+		mb_printf("The tags are the same!\r\n");
+		// Continue Decryption
+		set_waiting_chunk();
+	} else {
+		mb_printf("The tags are not the same :( \r\n");
+		mb_printf("Modification detected!\r\n");
+		set_stopped();
+	}
+
+	// TODO: Make decrypt song function
+	// TODO: Modify miPod to react to updated drm states
+	// TODO: Stream data over correctly
+	// TODO: Check if song chunks can be played without file headers
+	// TODO: Make sure playing a song follows original checks, IE: user logged in/song is shared with them/they own the song/can be played in that region
+}
+
 
 //////////////////////// MAIN ////////////////////////
 
@@ -504,9 +619,13 @@ int main() {
     // clear command channel
     memset((void*)c, 0, sizeof(cmd_channel));
 
-    mb_printf("Audio DRM Module has Booted\n\r");
+    // Load keys/secrets
 
-    decrypt_song();
+
+    mb_printf("Audio DRM Module has Booted\n\r");
+    unsigned char key[32];
+
+    hextobin(key, KEY_HEX);
 
     // Handle commands forever
     while(1) {
@@ -539,6 +658,9 @@ int main() {
             case DIGITAL_OUT:
                 digital_out();
                 break;
+            case READ_HEADER:
+            	read_header(key);
+            	break;
             default:
                 break;
             }

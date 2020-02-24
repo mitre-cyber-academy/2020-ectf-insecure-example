@@ -30,6 +30,19 @@
 #define MAX_PIN_SZ 64
 #define MAX_SONG_SZ (1<<25)
 
+#define CHUNK_TIME_SEC 30
+#define AUDIO_SAMPLING_RATE 48000
+#define BYTES_PER_SAMP 2
+#define NONCE_SIZE 12
+#define WAVE_HEADER_SIZE 44
+#define MAC_SIZE 16
+#define ENC_CHUNK_SZ (CHUNK_TIME_SEC * AUDIO_SAMPLING_RATE * BYTES_PER_SAMP) + MAC_SIZE
+
+#define RID_SZ 8
+#define UID_SZ 8
+
+#define MAX_METADATA_SZ UID_SZ + (RID_SZ * MAX_REGIONS) + (MAX_USERS * UID_SZ)
+
 
 // LED colors and controller
 struct color {
@@ -73,6 +86,25 @@ typedef struct __attribute__((__packed__)) {
     drm_md md;
 } song;
 
+typedef struct __attribute__ ((__packed__)) {
+	unsigned char nonce[NONCE_SIZE];
+	unsigned char wave_header[WAVE_HEADER_SIZE];
+	unsigned char tag[MAC_SIZE];
+} encryptedWaveheader;
+
+typedef struct __attribute__ ((__packed__)) {
+	unsigned char metadata_size;
+	unsigned char nonce[NONCE_SIZE];
+	unsigned char metadata[MAX_METADATA_SZ];
+	unsigned char tag[MAC_SIZE];
+} encryptedMetadata;
+
+typedef struct __attribute__ ((__packed__)) {
+	unsigned char nonce[NONCE_SIZE];
+	unsigned char data[ENC_CHUNK_SZ];
+	unsigned char tag[MAC_SIZE];
+} encryptedSongChunk;
+
 // accessors for variable-length metadata fields
 #define get_drm_rids(d) (d.md.buf)
 #define get_drm_uids(d) (d.md.buf + d.md.num_regions)
@@ -80,8 +112,8 @@ typedef struct __attribute__((__packed__)) {
 
 
 // shared buffer values
-enum commands { QUERY_PLAYER, QUERY_SONG, LOGIN, LOGOUT, SHARE, PLAY, STOP, DIGITAL_OUT, PAUSE, RESTART, FF, RW };
-enum states   { STOPPED, WORKING, PLAYING, PAUSED };
+enum commands { QUERY_PLAYER, QUERY_SONG, LOGIN, LOGOUT, SHARE, PLAY, STOP, DIGITAL_OUT, PAUSE, RESTART, FF, RW, READ_HEADER };
+enum states   { STOPPED, WORKING, PLAYING, PAUSED, READING_HEADER, WAITING_METADATA, READING_METADATA, WAITING_CHUNK, READING_CHUNK};
 
 
 // struct to interpret shared command channel
@@ -97,6 +129,9 @@ typedef volatile struct __attribute__((__packed__)) {
     union {
         song song;
         query query;
+        encryptedWaveheader encWaveHeader;
+        encryptedMetadata encMetadata;
+        encryptedSongChunk encSongChunk;
     };
 } cmd_channel;
 

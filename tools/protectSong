@@ -19,6 +19,10 @@ import nacl.encoding
 # calculating the chunk remainder
 import math
 
+# TODO: Move encryption processes to separate functions
+# TODO: Map arguments to correct variables
+# TODO: Move nonces to encrypted chunk, keep first nonce public
+
 class ProtectedSong(object):
     """Example song object for protected song"""
 
@@ -123,7 +127,8 @@ class ProtectedSong(object):
         # Write the 12 bytes of the header hash
         encrypted_song.write(nonce)
 
-        aad = b"wave_header"
+        aad = b"wave_header\0"
+        print("Length of AAD: " + str(len(aad)))
 
         # Encrypt Wav Header
         encrypted_header = b.crypto_aead_chacha20poly1305_ietf_encrypt(wave_header, aad, nonce, key)
@@ -150,7 +155,7 @@ class ProtectedSong(object):
 
         print("Nonce: " + str(nonce))
 
-        aad = b"meta_data"
+        aad = b"meta_data\0"
 
         encrypted_metadata = b.crypto_aead_chacha20poly1305_ietf_encrypt(self.metadata, aad, nonce, key)
         print("Encrypted Metadata size: " + str(len(encrypted_metadata)))

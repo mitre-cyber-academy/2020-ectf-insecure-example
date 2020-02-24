@@ -15,6 +15,9 @@ import nacl.encoding
 # calculating the chunk remainder
 import math
 
+# TODO: Move decryption processes to separate functions
+# TODO: Add argument parsing
+# TODO: Move nonces to encrypted chunk, keep first nonce public
 
 def decrypt_song(keys_loc):
     # Configuration Variables
@@ -52,7 +55,7 @@ def decrypt_song(keys_loc):
 
     encrypted_wave_header = encrypted_song.read(encrypted_wave_header_size)
 
-    aad = b"wave_header"
+    aad = b"wave_header\0"
 
     # Encrypt Wav Header
     wav_header = b.crypto_aead_chacha20poly1305_ietf_decrypt(encrypted_wave_header, aad, nonce, key)
@@ -78,7 +81,7 @@ def decrypt_song(keys_loc):
     nonce = encrypted_song.read(hash_byte_size)
     print("Metadata nonce: " + str(nonce))
 
-    aad = b"meta_data"
+    aad = b"meta_data\0"
 
     encrypted_metadata = encrypted_song.read(encrypted_metadata_size)
 
