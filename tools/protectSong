@@ -78,6 +78,7 @@ class ProtectedSong(object):
         hash_byte_size = 12     # Take 12 bytes of a 256 bit hash
         wave_header_size = 44   # http://soundfile.sapp.org/doc/WaveFormat/
         aad_size = 4            # Use 4 bytes to store aad size
+        metadata_size_allocation = 8
 
         encoder = nacl.encoding.RawEncoder
         encrypted_file_size = 0 # Track total file size
@@ -102,6 +103,16 @@ class ProtectedSong(object):
         chunk_remainder = song_info_size % chunk_size
         print("Chunk remainder size: " + str(chunk_remainder))
 
+        # Append metadata size onto fileheader
+        metadata_size = len(self.metadata).to_bytes(metadata_size_allocation, 'little')
+        print("Metadata Size: " + str(metadata_size))
+        print("Wave header: " + str(wave_header))
+        wave_header_raw = bytearray(wave_header)
+        wave_header_raw.extend(metadata_size)
+        wave_header_combined = bytes(wave_header_raw)
+
+        encrypted_file_size += len(self.metadata)
+
         # Open secrets
         keys_file = json.load(open(keys_loc, "r"))
 
@@ -114,7 +125,7 @@ class ProtectedSong(object):
         print("Starting encrypt song")
 
         # Calculate header hash for nonce
-        header_hash = nacl.hash.sha256(wave_header, encoder=encoder)
+        header_hash = nacl.hash.sha256(wave_header_combined, encoder=encoder)
         print("Header Hash: " + str(header_hash))
 
         # Take first 12 bytes of header hash
@@ -131,7 +142,7 @@ class ProtectedSong(object):
         print("Length of AAD: " + str(len(aad)))
 
         # Encrypt Wav Header
-        encrypted_header = b.crypto_aead_chacha20poly1305_ietf_encrypt(wave_header, aad, nonce, key)
+        encrypted_header = b.crypto_aead_chacha20poly1305_ietf_encrypt(wave_header_combined, aad, nonce, key)
 
         encrypted_file_size += len(encrypted_header)
 
@@ -139,12 +150,6 @@ class ProtectedSong(object):
 
         # Write Encrypted wave header
         encrypted_song.write(encrypted_header)
-
-        # Write metadata_size 
-        print("Metadata Size: " + str(len(self.metadata)))
-        encrypted_song.write(self.metadata_size)
-
-        encrypted_file_size += len(self.metadata)
 
         metadata_hash = nacl.hash.sha256(self.metadata, encoder=encoder)
         print("Metadata Hash: " + str(metadata_hash))

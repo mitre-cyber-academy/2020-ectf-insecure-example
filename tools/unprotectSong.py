@@ -27,8 +27,9 @@ def decrypt_song(keys_loc):
     mac_size = 16           # poly1305 mac size
     hash_byte_size = 12     # Take 12 bytes of a 256 bit hash
     aad_size = 4            # Use 4 bytes to store aad size
-    metadata_size_allocation = 1
-    encrypted_wave_header_size = 44 + mac_size
+    wave_header_size = 44
+    metadata_size_allocation = 8
+    encrypted_wave_header_size = wave_header_size + metadata_size_allocation + mac_size
     chunk_size = sample_rate * chunk_time * bytes_per_sample
     encrypted_chunk_size = chunk_size + mac_size
     encoder = nacl.encoding.RawEncoder
@@ -60,6 +61,12 @@ def decrypt_song(keys_loc):
     # Encrypt Wav Header
     wav_header = b.crypto_aead_chacha20poly1305_ietf_decrypt(encrypted_wave_header, aad, nonce, key)
 
+    metadata_size = int.from_bytes(wav_header[-metadata_size_allocation:], 'little')
+    print("Metadata size: " + str(metadata_size))
+
+    # Strip metadata size off wave_header
+    wav_header = wav_header[:wave_header_size]
+
     decrypted_song.write(wav_header)
 
     song_info_size = int.from_bytes(wav_header[-4:], byteorder='little')
@@ -74,15 +81,12 @@ def decrypt_song(keys_loc):
     encrypted_chunk_remainder_size = chunk_remainder + mac_size
     print("Chunk remainder size: " + str(chunk_remainder))
 
-    metadata_size = int.from_bytes(bytes=encrypted_song.read(metadata_size_allocation), byteorder="little")
-
-    encrypted_metadata_size = metadata_size + mac_size
-
     nonce = encrypted_song.read(hash_byte_size)
     print("Metadata nonce: " + str(nonce))
 
     aad = b"meta_data\0"
 
+    encrypted_metadata_size = metadata_size + mac_size
     encrypted_metadata = encrypted_song.read(encrypted_metadata_size)
 
     metadata = b.crypto_aead_chacha20poly1305_ietf_decrypt(encrypted_metadata, aad, nonce, key)
