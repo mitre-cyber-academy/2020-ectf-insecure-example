@@ -5,7 +5,6 @@ Description: Creates user specific secrets
 Use: Once per user
 """
 
-
 from argparse import ArgumentParser     # For command line argument parsing
 from secrets import token_hex           # For random hex number generation
 from hashlib import sha256              # For hashing
@@ -33,6 +32,7 @@ def main(user_list, outfile):
         return 0
 
     try:
+        # Intitialize empty dictionary
         userDictionary = {}
 
         for entry in user_list:
@@ -81,7 +81,7 @@ Gets arguments from command line
 """
 def get_args():
     # Initialize Argument Parser
-    parser = ArgumentParser(description='Generates json encoded file containing usernames, hashed salted passwords and salts.')
+    parser = ArgumentParser(description='Generates json encoded file containing usernames, user IDs, hashed salted passwords and salts.')
 
     # Add --user-list argument to store an arbitrary number of usernames and pins
     parser.add_argument('--user-list', nargs='+',
@@ -90,7 +90,7 @@ def get_args():
     
     # Add --outfile argument to store a single output filepath
     parser.add_argument('--outfile', nargs=1,
-                        help='location to save user secrets file',
+                        help='Location to save user secrets file',
                         required=True)
     
     # Call to parse arguments
@@ -107,6 +107,6 @@ if __name__ == '__main__':
     users, outfile = get_args()
 
     # Print status message
-    print("\nGenerating user speific secrets\n\n")
+    print("\n" + "Generating user speific secrets" + "\n\n")
 
     main(users, outfile)
