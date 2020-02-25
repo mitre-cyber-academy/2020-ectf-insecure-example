@@ -5,8 +5,12 @@ Description: Creates user specific secrets
 Use: Once per user
 """
 
-import json
-from argparse import ArgumentParser
+
+from argparse import ArgumentParser     # For command line argument parsing
+from secrets import token_hex           # For random hex number generation
+from hashlib import sha256              # For hashing
+from random import randint              # For random integer generation
+import json                             # For JSON encoded output
 
 
 
@@ -22,19 +26,48 @@ def main(user_list, outfile):
     # Open outfile in write mode
     try:
         secrets = open(outfile[0], mode="w")
+
+    # If outfile cannot be opened, print an error message
     except Exception as e:
         print("Unable to open secrets file: %s" % (e,))
         return 0
 
-    
     try:
-        user_dict = {user.split(":")[0]: {"pin": user.split(":")[1], "id": num} for num, user in enumerate(user_list)}
+        userDictionary = {}
+
+        for entry in user_list:
+
+            # Generate random 6 character hex for userID
+            userID = token_hex(3)
+
+            # Extract username from entry
+            userName = entry.split(":")[0]
+
+            # Generate random 6 character hex for salt
+            salt = token_hex(3)
+
+            # Extract pin from user_list
+            pin = entry.split(":")[1]
+
+            # Has pin and salt
+            hashedPin = sha256((pin + salt).encode("utf-8")).hexdigest()
+
+            # Add entry to user dictionary
+            userDictionary.update({userID: {"userName" : userName, "hashedPin" : hashedPin, "salt" : salt}})
+
+    # If username and/or pin cannot be parsed print an error message
     except IndexError:
         raise Exception(
             "Unable to parse user name and pin. Please make sure you entered the user-list as "
             "space seperated pairs of usernames and pins. Example: --user-list user1:12345678 user2:12345689")
-    info = json.dumps(user_dict)
-    secrets.write(info)
+    
+    # Encode userDictionary as JSON
+    dataToWrite = json.dumps(userDictionary)
+
+    # Write JSON to outfile
+    secrets.write(dataToWrite)
+
+    # Close outfile
     secrets.close()
 
 
