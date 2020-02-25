@@ -6,78 +6,91 @@ Description: Generates system wide secrets containing all potential regions
 Use: Once per ecosystem of devices
 """
 
-import json
-from secrets import token_hex
-from argparse import ArgumentParser
+from argparse import ArgumentParser     # For command line argument parsing
+from secrets import token_hex           # For random hex number generation
+import json                             # For JSON encoded output
 
-
-region_id_length = 6
 
 
 """
 Description: Main function that outputs a json file with a dictionary of regions with region Id's
+    
+    Args:
+        region_dict Dictionary of regions and randomized region Id's
+        file_name Outputfile name/path to which the Region Dictionary should be written to
 
-:param region_dict: Dictionary of regions and randomized region Id's
-:parm file_name: Outputfile name/path to which the Region Dictionary should be written to
-
-:return: Returns a json file with region dictionary with random Id's
+    Returns:
+        Returns a json file with region dictionary with random Id's
 """
+def main(region_list, file_name):
 
-def main(region_dict, file_name):
+    # Open outfile in write mode
     try:
-        secrets = open(file_name, "w")
+        secrets = open(outfile[0], mode="w")
+
+    # If outfile cannot be opened, print an error message
     except Exception as e:
         print("Unable to open secrets file: %s" % (e,))
         return 0
 
-    json.dump(region_dict, secrets)
+    # Intitialize empty dictionary
+    regionDictionary = {}
+
+    # Fill regionDictionary
+    for region in region_list:
+        
+        # Generate random regionID
+        regionID = token_hex(3)
+
+        # Add region and regionID to regionDictionary
+        regionDictionary.update({region: regionID})
+
+    # Encode userDictionary as JSON
+    dataToWrite = json.dumps(regionDictionary)
+
+    # Write JSON to outfile
+    secrets.write(dataToWrite)
+
+    # Close outfile
     secrets.close()
 
-"""
-Description: declares the 2 arguments that need to be passed to create the region dictionary
 
-:return: returns the list of user gnerated regions and the user specified file location
+
+"""
+Declares the 2 arguments that need to be passed to create the region dictionary
+
+    Returns:
+        The list of user gnerated regions and the user specified file location
 """
 def get_args():
-    parser = ArgumentParser(description='main interface to provision system')
-    parser.add_argument('--region-list', help='list of regions for provisioning purposes',
-                        required=True, nargs='+')
-    parser.add_argument('--outfile', help='file to save region secrets to', required=True)
+    # Initialize Argument Parser
+    parser = ArgumentParser(description='Generates json encoded file containing regions and region IDs')
+
+    # Add --region-list argument to store an arbitrary number of regions
+    parser.add_argument('--region-list', nargs='+',
+                        help='List of regions for provisioning purposes',
+                        required=True)
+
+    # Add --outfile argument to store a single output filepath
+    parser.add_argument('--outfile', nargs=1,
+                        help='Location to save user secrets file',
+                        required=True)
+
+    # Call to parse arguments
     args = parser.parse_args()
+
     return args.region_list, args.outfile
 
-"""
-Description: randomizes the id of a region into 8 digit hexadecimal characters
 
-:return: Returns an hexadecimal, randomized string.
-"""
 
-def random_id_generator():
-    RegionIdList = []
-    run = True
-    randomized_id = 0
-    
-    while(run):
-        randomized_id = token_hex(round(region_id_length / 2))
-        
-        if(not(len(RegionIdList) == 0)): 
-            for x in RegionIdList:
-
-                if(randomized_id == x): #ensures that the newly randomly generated id does not already exist, re-does randomization if so
-                    break;
-
-                elif(x == RegionIdList[len(RegionIdList) - 1]):
-                    run = False
-                    break;
-        
-        else:
-            run = False
-        
-    RegionIdList.append(randomized_id)
-    return (randomized_id)
-
+# Treats script as a standalone and does
 if __name__ == '__main__':
+
+    # Parse inputs and store them as variables
     region_list, outfile = get_args()
-    print("generating system specific secrets")
-    regions = {region: random_id_generator() for region, region in enumerate(region_list)} #Creates random region ID dictionary
-    main(regions, outfile)
+
+
+    # Print status message
+    print("\n" + "Generating region speific secrets" + "\n\n")
+
+    main(region_list, outfile)

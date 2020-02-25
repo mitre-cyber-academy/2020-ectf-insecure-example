@@ -106,6 +106,31 @@ if __name__ == '__main__':
     # Parse inputs and store them as variables
     users, outfile = get_args()
 
+    # Branding
+    print("""MMMMMMMMMMMMMMMMMMMMMMMMWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWMMMMMMMMMMMMMMMMMM
+MMMMMMMMMMMMMMMMMMMMMMWk;,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,;;:cdkKWMMMMMMMMMM
+MMMMMMMMMMMMMMMMMMMMWWO. .:ccccccccccccccccccccccccccccccccccccccccccc:::;,'. .;xXWMMMMMMM
+MMMMMMMMMMMMMMMMMMMMWK, .xk:;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;::clloo:. ;0MMMMMMM
+MMMMMMMMMMMMMMMMMMMMX: .dx.                                                  'xd. :XMMMMMM
+MMMMMMMMMMMMMMMMMMMXc .ok'                                                    ;0: .OMMMMMM
+MMMMMMMMMMMMMMMMMMNo. cXOlllccl;               'clllllllllccllc:.             cO, '0MMMMMM
+MMMMMMMMMMMMMMMMMWd.  .;;;;;;xXc              ;Oo;;;;;;;;;;;;;;kO.           .ko  oWMMMMMM
+MMMMMMMMMMMMMMMMMXd::::::'  ,kl             'okl             .:kl           .xx. ;XMMMMMMM
+MMMMMMMMMMMMMMMMMMMMMMMM0, .kd.            .oKOdlllllllllllllll,           .dx. ,0MMMMMMMM
+MMMMMMMMMMMMMMMMMMMMMMMX; .dx.              .................             'xd. ,0MMMMMMMMM
+MMMMMMMMMMMMMMMMMMMMMMXc  ok'                                           'ox:. :0MMMMMMMMMM
+MMMMMMMMMMMMMMMMMMMMMNl  lk,                                      ..,:loo:. 'xNMMMMMMMMMMM
+MMMMMMMMMMWMWK000000Oo. :O;             ,oollclllllllllllllllllllclllc,. .:xXWWMMMMMMMMMMM
+MMMMMMMMMMMWx........  ;Oc             ;Ol.......................  ..';lxKWWWMMMMMMMMMMMMM
+MMMMMMMMMMWk. 'oollllllxl             .dOdlllllox,  ,dddddddddddxkO0XNWMMMMMMMMMMMMMMMMMMM
+MMMMMMMMMM0' 'kd........               .......'kk. ,0MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+MMMMMMMMMK; .xd.                             .lO, .OWMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+MMMMMMMMX: .ox.                             :OO; .xWMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+MMMMMMMNl  ;kxccllllllllllllllllllllllllclllxk: .oXXXWMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+MMMMMMWd.   .................................   lN0ooKMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+MMMMMMNOxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxdxxdxxddkNMNKKWMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+    """)
+
     # Print status message
     print("\n" + "Generating user speific secrets" + "\n\n")
 
