@@ -28,10 +28,6 @@ def decrypt_song(keys_loc, infile, outfile):
     encrypted_wave_header_size = wave_header_size + metadata_size_allocation + mac_size
     chunk_size = sample_rate * chunk_time * bytes_per_sample
     encrypted_chunk_size = chunk_size + mac_size
-    encoder = nacl.encoding.RawEncoder
-
-    encrypted_file_size = 0
-
 
     encrypted_song = open(infile, 'rb')
     decrypted_song = open(outfile, 'wb')
@@ -40,7 +36,6 @@ def decrypt_song(keys_loc, infile, outfile):
 
 
     key = bytes.fromhex(keys_file["key"])
-    iv = bytes.fromhex(keys_file["iv"])
 
 
     nonce = encrypted_song.read(hash_byte_size)
@@ -51,8 +46,6 @@ def decrypt_song(keys_loc, infile, outfile):
 
     # Encrypt Wav Header
     wav_header = b.crypto_aead_chacha20poly1305_ietf_decrypt(encrypted_wave_header, aad, nonce, key)
-
-    metadata_size = int.from_bytes(wav_header[-metadata_size_allocation:], 'little')
 
     # Strip metadata size off wave_header
     wav_header = wav_header[:wave_header_size]
@@ -72,11 +65,7 @@ def decrypt_song(keys_loc, infile, outfile):
 
     aad = b"meta_data\0"
 
-    encrypted_metadata_size = metadata_size + mac_size
-    encrypted_metadata = encrypted_song.read(encrypted_metadata_size)
-
-    metadata = b.crypto_aead_chacha20poly1305_ietf_decrypt(encrypted_metadata, aad, nonce, key)
-
+    
     for i in range(1, chunk_to_read + 1):
         nonce = encrypted_song.read(hash_byte_size)
         aad = int.to_bytes(i, aad_size, 'little')

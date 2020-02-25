@@ -110,8 +110,7 @@ class ProtectedSong(object):
         keys_file = json.load(open(keys_loc, "r"))
         
         key = bytes.fromhex(keys_file["key"])
-        iv = bytes.fromhex(keys_file["iv"])
-
+        
         print("Starting encrypt song")
 
         # Calculate header hash for nonce
