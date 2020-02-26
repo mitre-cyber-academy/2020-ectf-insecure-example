@@ -8,6 +8,8 @@ BOOT
 *.wav
 *.drm
 *.vagrant
+.vscode/
+.DS_Store
 
 # C Project Debug
 miPod/Debug
