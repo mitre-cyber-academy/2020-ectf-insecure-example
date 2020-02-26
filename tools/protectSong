@@ -10,19 +10,32 @@ import wave
 from argparse import ArgumentParser
 import numpy as np
 
+# Used for encryption
+import nacl.bindings as b
+import nacl.exceptions as exc
+import nacl.hash
+import nacl.encoding
+
+# calculating the chunk remainder
+import math
+
+# TODO: Move encryption processes to separate functions
+# TODO: Map arguments to correct variables
+# TODO: Move nonces to encrypted chunk, keep first nonce public
 
 class ProtectedSong(object):
     """Example song object for protected song"""
 
     def __init__(self, path_to_song, metadata):
         """initialize values
-        Args:
+        :
             path_to_song (string): file name where the song to be provisioned is stored
             metadata (bytearray): bytes containing metadata information
         """
         self.song = path_to_song
         self.full_song, self.original_song = self.read_song(path_to_song)
         self.metadata = metadata
+        self.metadata_size = metadata[:1]
 
     def save_secured_song_to_wave(self, file_location):
         """Saves secured song to wave file assuming all the same characteristics as original song
@@ -56,6 +69,132 @@ class ProtectedSong(object):
         song.close()
         return vals, song
 
+    def encrypt_song(self, keys_loc, outfile):
+        # Configuration Variables
+        sample_rate = 48000     # 48KHz
+        chunk_time = 30         # 30s
+        bytes_per_sample = 2    # 2 bytes sampled
+        chunk_size = sample_rate * chunk_time * bytes_per_sample
+        hash_byte_size = 12     # Take 12 bytes of a 256 bit hash
+        wave_header_size = 44   # http://soundfile.sapp.org/doc/WaveFormat/
+        aad_size = 4            # Use 4 bytes to store aad size
+        metadata_size_allocation = 8
+
+        encoder = nacl.encoding.RawEncoder
+        encrypted_file_size = 0 # Track total file size
+
+        # Open song for reading raw data
+        song = open(self.song, "rb")
+
+        # Read wav file header
+        wave_header = song.read(wave_header_size)
+
+        # The last 4 bytes of a wav file header includes the song size
+        song_info_size = int.from_bytes(wave_header[-4:], byteorder='little')
+
+        # Calculate number of chunks to read
+        chunk_to_read = math.floor(song_info_size / chunk_size)
+
+        # Calculate remainder
+        chunk_remainder = song_info_size % chunk_size
+
+        # Append metadata size onto fileheader
+        metadata_size = len(self.metadata).to_bytes(metadata_size_allocation, 'little')
+        wave_header_raw = bytearray(wave_header)
+        wave_header_raw.extend(metadata_size)
+        wave_header_combined = bytes(wave_header_raw)
+
+        encrypted_file_size += len(self.metadata)
+
+        # Open secrets
+        keys_file = json.load(open(keys_loc, "r"))
+        
+        key = bytes.fromhex(keys_file["key"])
+        
+        print("Starting encrypt song")
+
+        # Calculate header hash for nonce
+        header_hash = nacl.hash.sha256(wave_header_combined, encoder=encoder)
+
+        # Take first 12 bytes of header hash
+        nonce = header_hash[:hash_byte_size]
+
+        # Open encrypted song file pointer
+        encrypted_song = open(outfile, "wb")
+        
+        # Write the 12 bytes of the header hash
+        encrypted_song.write(nonce)
+
+        aad = b"wave_header\0"
+        
+        # Encrypt Wav Header
+        encrypted_header = b.crypto_aead_chacha20poly1305_ietf_encrypt(wave_header_combined, aad, nonce, key)
+
+        encrypted_file_size += len(encrypted_header)
+
+        # Write Encrypted wave header
+        encrypted_song.write(encrypted_header)
+
+        metadata_hash = nacl.hash.sha256(self.metadata, encoder=encoder)
+        
+
+        nonce = metadata_hash[:hash_byte_size]
+
+        encrypted_song.write(nonce)
+
+        aad = b"meta_data\0"
+
+        encrypted_metadata = b.crypto_aead_chacha20poly1305_ietf_encrypt(self.metadata, aad, nonce, key)
+
+        encrypted_file_size += len(encrypted_metadata)
+
+        # Write encrypted metadata
+        encrypted_song.write(encrypted_metadata)
+
+        # Add 1 since range is exclusive
+        for i in range(1, chunk_to_read + 1):
+            thirty_seconds = song.read(chunk_size)
+
+            chunk_hash = nacl.hash.sha256(thirty_seconds, encoder=encoder)
+
+            nonce = chunk_hash[:hash_byte_size]
+
+            encrypted_song.write(nonce)
+            
+
+            aad = int.to_bytes(i, aad_size, 'little')
+
+            encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(thirty_seconds, aad, nonce, key)
+
+            encrypted_file_size += len(encrypted_chunk)
+
+            # Write chunk
+            encrypted_song.write(encrypted_chunk)
+            
+        thirty_seconds = song.read(chunk_remainder)
+
+
+        chunk_hash = nacl.hash.sha256(thirty_seconds, encoder=encoder)
+
+        nonce = chunk_hash[:hash_byte_size]
+
+        encrypted_song.write(nonce)
+
+
+        aad = int.to_bytes(chunk_to_read + 1, aad_size, 'little')
+        encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(thirty_seconds, aad, nonce, key)
+
+        encrypted_file_size += len(encrypted_chunk)
+
+
+        # Write remainders
+        encrypted_song.write(encrypted_chunk)
+
+        encrypted_song.close()
+
+        song.close()
+
+        print("Encryption Success")
 
 def create_metadata(regions, user, user_secret_location, region_info):
     """Returns a byte string formatted as follows:
@@ -80,7 +219,6 @@ def create_metadata(regions, user, user_secret_location, region_info):
         int(user_secrets[user]['id']), len(regions), 0,
         bytes([region_info[str(r)] for r in regions]),
         b'\x00' if len(regions) % 2 else b'')
-
     return bytes([len(metadata) + 1]) + metadata
 
 
@@ -102,6 +240,7 @@ def main():
         raise ValueError('Ensure all user IDs are integers and all regions are in the provided region_information.json')
     protected_song = ProtectedSong(args.infile, metadata)
     protected_song.save_secured_song_to_wave(args.outfile)
+    protected_song.encrypt_song("keys.json", args.outfile)
 
 
 if __name__ == '__main__':
