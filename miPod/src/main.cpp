@@ -14,7 +14,6 @@
 #include <errno.h>
 #include <linux/gpio.h>
 #include <string.h>
-#include <openssl/ssl.h>
 #include <pthread.h>
 
 //c++ includes
@@ -150,6 +149,8 @@ void read_enc_metadata(FILE *fp, int metadata_size) {
 	int metadata_total_size = NONCE_SIZE + MAC_SIZE + metadata_size;
 
 	fread((void *)&(c->encMetadata), metadata_total_size, 1, fp);
+
+	//printf("Metadata read %s\r\n", get_metadata(c->encMetadata));
 
 	send_command(READ_METADATA);
 
@@ -508,7 +509,10 @@ void play_encrypted_song(std::string song_name) {
 	}
 
 	std::cout << "Waiting for metadata to process" << std::endl;
-	while (c->drm_state == WAITING_METADATA) continue;
+	while (c->drm_state == WAITING_METADATA) {
+		//std::cout << "???????" << std::endl;
+		continue;
+	}
 	std::cout << "Metadata Processed!" << std::endl;
 	while (c->drm_state == STOPPED) continue; // wait for DRM to start playing
 	while (c->drm_state == WORKING) continue;
@@ -597,7 +601,6 @@ int main(int argc, char** argv) {
 
 	// Check cmd_channel size
 	std::cout << "CMD_CHANNEL SIZE: " << sizeof(cmd_channel) << std::endl;
-	std::cout << "Checking openssl version: " << SSLeay_version(SSLEAY_VERSION) << std::endl;
 
 	// open command channel
 	mem = open("/dev/uio0", O_RDWR);

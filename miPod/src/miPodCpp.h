@@ -95,7 +95,7 @@ typedef struct __attribute__ ((__packed__)) {
 	unsigned char metadata[];
 } encryptedMetadata;
 
-#define get_metadata(m) ((char *)(&m.metadata) + NONCE_SIZE + MAC_SIZE)
+#define get_metadata(m) ((unsigned char *)(&m.metadata))
 
 typedef struct __attribute__ ((__packed__)) {
 	unsigned char nonce[NONCE_SIZE];

@@ -1,4 +1,4 @@
-/*
+ /*
   * eCTF Collegiate 2020 MicroBlaze Example Code
  * Audio Digital Rights Management
  */
@@ -255,6 +255,8 @@ unsigned int read_header(unsigned char key[32], waveHeaderMetaStruct *waveHeader
 	unsigned char aad[12] = "wave_header";
 	unsigned char tag_buffer[MAC_SIZE];
 
+	set_working();
+
 	memcpy(nonce, (void *)c->encWaveHeaderMeta.nonce, NONCE_SIZE);
 	memcpy(waveHeaderMeta, (void *)&(c->encWaveHeaderMeta.wave_header_meta), sizeof(waveHeaderMetaStruct));
 	memcpy(tag, (void *)c->encWaveHeaderMeta.tag, MAC_SIZE);
@@ -286,6 +288,7 @@ int read_metadata(unsigned char key[32], int metadata_size, encryptedMetadata *m
 	memcpy(metadata_buffer, get_metadata(c->encMetadata), metadata_size);
 
 	mb_printf("Reading metadata of size: %i\r\n", metadata_size);
+	//mb_printf("Read %s\r\n", metadata_buffer);
 
 	br_poly1305_ctmul_run(key, nonce, metadata_buffer, metadata_size, aad, sizeof(aad), tag_buffer, br_chacha20_ct_run, 0);
 
@@ -599,6 +602,9 @@ void play_encrypted_song(unsigned char key[32]) {
 		return;
 	}
 
+	mb_printf("Waiting for metadata!\r\n");
+	set_waiting_metadata();
+
 	int chunks_to_read, chunk_counter = 1;
 	unsigned int chunk_remainder;
 
@@ -606,14 +612,12 @@ void play_encrypted_song(unsigned char key[32]) {
 	chunk_remainder = waveHeaderMeta.wave_header.wav_size % SONG_CHUNK_SZ;
 
 	encryptedMetadata metadata;
-
 	c->metadata_size = metadata_size;
 
-	set_waiting_metadata();
 
 	u32 counter = 0, rem, cp_num, cp_xfil_cnt, offset, dma_cnt, *fifo_fill;
 
-	mb_printf("Reading Audio File...");
+	mb_printf("Reading Audio File...\r\n");
 
 	rem = SONG_CHUNK_SZ;
 	fifo_fill = (u32 *) XPAR_FIFO_COUNT_AXI_GPIO_0_BASEADDR;
@@ -621,9 +625,14 @@ void play_encrypted_song(unsigned char key[32]) {
 	// write entire file to two-block codec fifo
 	// writes to one block while the other is being played
 
-	while (rem > 0) {
+	while (1) {
+		mb_printf("In Play loop\r\n");
 		while (InterruptProcessed) {
 			InterruptProcessed = FALSE;
+
+			mb_printf("Processing interruption\r\n");
+
+			set_working();
 
 			switch (c->cmd) {
 			case READ_METADATA:
@@ -660,6 +669,8 @@ void play_encrypted_song(unsigned char key[32]) {
 			}
 		}
 
+		mb_printf("Starting play song \r\n");
+
 		// calculate write size and offset
 		cp_num = (rem > CHUNK_SZ) ? CHUNK_SZ : rem;
 		offset = (counter++ % 2 == 0) ? 0 : CHUNK_SZ;
@@ -673,11 +684,13 @@ void play_encrypted_song(unsigned char key[32]) {
 		cp_xfil_cnt = cp_num;
 
 		while (cp_xfil_cnt > 0) {
-
 			// polling while loop to wait for DMA to be ready
 			// DMA must run first for this to yield the proper state
 			// rem != length checks for first run
-			while (XAxiDma_Busy(&sAxiDma, XAXIDMA_DMA_TO_DEVICE) && rem != CHUNK_SZ && *fifo_fill < (FIFO_CAP - 32));
+
+			if ((XAxiDma_Busy(&sAxiDma, XAXIDMA_DMA_TO_DEVICE) == TRUE) && (*fifo_fill < (FIFO_CAP - 32))) {
+				mb_printf("Device busy?\r\n");
+			}
 
 			// do DMA
 			dma_cnt = (FIFO_CAP - *fifo_fill > cp_xfil_cnt) ? FIFO_CAP - *fifo_fill : cp_xfil_cnt;
