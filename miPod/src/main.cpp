@@ -14,7 +14,6 @@
 #include <errno.h>
 #include <linux/gpio.h>
 #include <string.h>
-#include <openssl/ssl.h>
 #include <pthread.h>
 
 //c++ includes
@@ -597,7 +596,6 @@ int main(int argc, char** argv) {
 
 	// Check cmd_channel size
 	std::cout << "CMD_CHANNEL SIZE: " << sizeof(cmd_channel) << std::endl;
-	std::cout << "Checking openssl version: " << SSLeay_version(SSLEAY_VERSION) << std::endl;
 
 	// open command channel
 	mem = open("/dev/uio0", O_RDWR);
