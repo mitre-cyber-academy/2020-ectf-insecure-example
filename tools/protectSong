@@ -74,12 +74,10 @@ class ProtectedSong(object):
         sample_rate = 48000     # 48KHz
         chunk_time = 30         # 30s
         chunk_size = 20480
-        bytes_per_sample = 2    # 2 bytes sampled
-        chunk_size = sample_rate * chunk_time * bytes_per_sample
         hash_byte_size = 12     # Take 12 bytes of a 256 bit hash
         wave_header_size = 44   # http://soundfile.sapp.org/doc/WaveFormat/
         aad_size = 4            # Use 4 bytes to store aad size
-        metadata_size_allocation = 8
+        metadata_size_allocation = 4
 
         encoder = nacl.encoding.RawEncoder
         encrypted_file_size = 0 # Track total file size
@@ -128,6 +126,7 @@ class ProtectedSong(object):
 
         # Take first 12 bytes of header hash
         nonce = header_hash[:hash_byte_size]
+        print("Wave Header Nonce: " + str(nonce))
 
         # Open encrypted song file pointer
         encrypted_song = open(outfile, "wb")
@@ -139,8 +138,6 @@ class ProtectedSong(object):
         
         # Encrypt Wav Header
         encrypted_header = b.crypto_aead_chacha20poly1305_ietf_encrypt(wave_header_combined, aad, nonce, key)
-
-        encrypted_file_size += len(encrypted_header)
 
         # Write Encrypted wave header
         encrypted_song.write(encrypted_header)
@@ -169,11 +166,11 @@ class ProtectedSong(object):
 
         # Add 1 since range is exclusive
         for i in range(1, chunk_to_read + 1):
-            print("Working on Chunk " + str(i))
+            #print("Working on Chunk " + str(i))
             thirty_seconds = song.read(chunk_size)
 
             chunk_hash = nacl.hash.sha256(thirty_seconds, encoder=encoder)
-            print("Chunk Hash: " + str(chunk_hash))
+            #print("Chunk Hash: " + str(chunk_hash))
 
             nonce = chunk_hash[:hash_byte_size]
 
@@ -183,7 +180,7 @@ class ProtectedSong(object):
             aad = int.to_bytes(i, aad_size, 'little')
 
             encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(thirty_seconds, aad, nonce, key)
-            print("Encrypted Chunk Size: " + str(len(encrypted_chunk)))
+            #print("Encrypted Chunk Size: " + str(len(encrypted_chunk)))
 
             encrypted_chunk_tag = encrypted_chunk[-16:]
             encrypted_chunk_wo_tag = encrypted_chunk[:chunk_size]
