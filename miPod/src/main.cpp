@@ -15,6 +15,7 @@
 #include <linux/gpio.h>
 #include <string.h>
 #include <openssl/ssl.h>
+#include <pthread.h>
 
 //c++ includes
 #include <iostream>
@@ -30,15 +31,9 @@ volatile cmd_channel *c;
 
 // sends a command to the microblaze using the shared command channel and interrupt
 void send_command(int cmd) {
-	std::cout << "Sending command: '" << cmd << "'" << std::endl;
-
-	std::cout << "cmd temp: " << cmd << "\n";
-
-	if (memcpy((void*) &c->cmd, &cmd, 1) == NULL) { //TODO: Check for cmd size
+	if (memcpy((void*) &c->cmd, &cmd, 1) == NULL) {
 		std::cout << "Could not copy memory: " << (errno) << std::endl;
 	}
-
-	std::cout << "cmd struct: " << c->cmd << "\n";
 
 	//trigger gpio interrupt
 	system("devmem 0x41200000 32 0"); //reconsider the use of the system command
@@ -122,6 +117,81 @@ size_t load_file(std::string fname, songStruct *song_buf) {
 
     //mp_printf("Loaded file into shared buffer (%dB)\r\n", sb.st_size);
     return sb.st_size;
+}
+
+FILE *read_enc_file_header(std::string fname) {
+	FILE* fd;
+
+	fd = fopen(fname.c_str(), "rb");
+
+	if (fd == NULL) {
+		std::cout << "Could not open file! Error = " << (errno) << std::endl;
+		return NULL;
+	}
+
+	printf("Size of waveheader: %i, Size of enc_wave_header: %i\r\n", sizeof(waveHeaderStruct), sizeof(encryptedWaveheader));
+
+	fread((encryptedWaveheader *) &(c->encWaveHeader), sizeof(encryptedWaveheader), 1, fd);
+
+	send_command(READ_HEADER);
+	usleep(500);
+	while (c->drm_state == WORKING) continue; // wait for DRM to dump file
+
+	return fd;
+
+}
+
+void read_enc_metadata(FILE *fp, int metadata_size) {
+	if (fp == NULL) {
+		std::cout << "File error" << std::endl;
+		return;
+	}
+
+	int metadata_total_size = NONCE_SIZE + MAC_SIZE + metadata_size;
+
+	fread((void *)&(c->encMetadata), metadata_total_size, 1, fp);
+
+	send_command(READ_METADATA);
+
+	return;
+
+}
+
+void read_enc_chunk(FILE *fp, int chunk_size) {
+	std::cout << "Reading chunk size: " << chunk_size << std::endl;
+	int chunk_total_size = NONCE_SIZE + MAC_SIZE + chunk_size;
+
+	unsigned char buffer[chunk_total_size];
+
+	fread(buffer, chunk_total_size, 1, fp);
+
+	memcpy((void *)&(c->encSongChunk), buffer, chunk_total_size);
+
+	send_command(READ_CHUNK);
+
+	return;
+}
+void *read_enc_chunk_thread(void *fp) {
+	std::cout << "Start sending chunks!" << std::endl;
+	int chunk_size = c->chunk_size;
+	read_enc_chunk((FILE *)fp, chunk_size);
+
+	if (c->drm_state == STOPPED) {
+		return 0;
+	}
+
+	while (1) {
+		while(c->drm_state == READING_CHUNK) continue;
+		while(c->drm_state == WAITING_CHUNK) {
+			int chunk_size = c->chunk_size;
+			std::cout << "Reading another chunk" << std::endl;
+			read_enc_chunk((FILE *)fp, chunk_size);
+		}
+
+		if (c->drm_state == STOPPED) {
+			return 0;
+		}
+	}
 }
 
 //////////////////////// COMMAND FUNCTIONS ////////////////////////
@@ -255,7 +325,7 @@ void share_song(std::string song_name, std::string& username) {
 	// drive DRM
 	send_command(SHARE);
 	while (c->drm_state == STOPPED) continue; // wait for DRM to start working
-	while (c->drm_state == WORKING) continue; // wait for DRM to share song
+	while (c->drm_state == WORKING) continue; // wait for DRM to start working
 
 	// request was rejected if WAV length is 0
 	length = c->song.wav_size;
@@ -412,6 +482,107 @@ void digital_out(std::string song_name) {
 	std::cout << "Finished writing file" << std::endl;
 }
 
+void play_encrypted_song(std::string song_name) {
+
+	std::cout << "Playing Encrypted Song" << std::endl;
+
+	//char usr_cmd[USR_CMD_SZ + 1], *cmd = NULL, *arg1 = NULL, *arg2 = NULL;
+	std::string usr_cmd = "";
+	std::string cmd;
+	std::string arg1 = "";
+	std::string arg2 = "";
+
+	// load song into shared buffer
+	FILE *fp = read_enc_file_header(song_name);
+	if (fp == NULL) {
+		return;
+	}
+
+	while (c->drm_state == STOPPED) continue; // wait for DRM to start playing
+	while (c->drm_state == WORKING) continue;
+
+	if (c->drm_state == WAITING_METADATA) {
+		std::cout << "Start reading metadata!" << std::endl;
+		int metadata_size = c->metadata_size;
+		read_enc_metadata(fp, metadata_size);
+	}
+
+	std::cout << "Waiting for metadata to process" << std::endl;
+	while (c->drm_state == WAITING_METADATA) continue;
+	std::cout << "Metadata Processed!" << std::endl;
+	while (c->drm_state == STOPPED) continue; // wait for DRM to start playing
+	while (c->drm_state == WORKING) continue;
+
+	std::cout << "Check if we can send a song chunk" << std::endl;
+	if (c->drm_state == WAITING_CHUNK) {
+
+		// Start Thread!
+
+		pthread_t chunk_read_thread;
+
+		pthread_create(&chunk_read_thread, NULL, read_enc_chunk_thread, fp);
+	}
+
+	// play loop
+	while (1) {
+		// get a valid command
+		do {
+			print_prompt_msg(song_name.c_str());
+			std::getline(std::cin, usr_cmd);
+
+			// exit playback loop if DRM has finished song
+			if (c->drm_state == STOPPED) {
+				std::cout << "Song finished\r\n";
+				return;
+			}
+		} while (usr_cmd.length() < 2); //chars are one byte so this is fine
+
+		std::cout << "Checking command: " << cmd << std::endl;
+
+		// parse and handle command
+		parse_input(usr_cmd, cmd, arg1, arg2);
+
+		if (!cmd.empty()) {
+			if (cmd == "help") {
+				print_playback_help();
+			} else if (cmd == "resume") {
+				send_command(PLAY);
+				usleep(200000); // wait for DRM to print
+			} else if (cmd == "pause") {
+				send_command(PAUSE);
+				usleep(200000); // wait for DRM to print
+			} else if (cmd == "stop") {
+				send_command(STOP);
+				usleep(200000); // wait for DRM to print
+				break;
+			} else if (cmd == "restart") {
+				send_command(RESTART);
+			} else if (cmd == "exit") {
+				std::cout << "Exiting...\r\n";
+				send_command(STOP);
+				return;
+			} else if (cmd == "rw") {
+				mp_printf("Unsupported feature.\r\n\r\n");
+				print_playback_help();
+			} else if (cmd == "ff") {
+				std::cout << "Unsupported feature.\r\n\r\n";
+				print_playback_help();
+			} else if (cmd == "lyrics") {
+				std::cout << "Unsupported feature.\r\n\r\n";
+				print_playback_help();
+			} else {
+				std::cout << "Unrecognized command." << std::endl;
+				print_playback_help();
+			}
+		} else {
+			std::cout << "Please enter a command." << std::endl;
+			print_playback_help();
+		}
+	}
+
+	return;
+}
+
 //////////////////////// MAIN ////////////////////////
 
 int main(int argc, char** argv) {
@@ -436,7 +607,6 @@ int main(int argc, char** argv) {
 		std::cerr << "MMAP Failed! Error = " << (errno);
 		return -1;
 	}
-	std::cout << "Command channel open at " << c << " " << sizeof(cmd_channel); // do we really need to print this?;
 
 	// dump player information before command loop
 	query_player();
@@ -471,6 +641,8 @@ int main(int argc, char** argv) {
 				digital_out(arg1);
 			} else if (cmd == "share") {
 				share_song(arg1, arg2);
+			} else if (cmd == "play_enc_song") {
+				play_encrypted_song(arg1);
 			} else if (cmd == "exit") {
 				std::cout << "Exiting..." << std::endl;
 				break;

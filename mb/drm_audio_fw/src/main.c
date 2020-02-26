@@ -1,5 +1,5 @@
 /*
- * eCTF Collegiate 2020 MicroBlaze Example Code
+  * eCTF Collegiate 2020 MicroBlaze Example Code
  * Audio Digital Rights Management
  */
 
@@ -16,7 +16,7 @@
 #include "constants.h"
 #include "sleep.h"
 
-#include "song_util.h"
+#include <bearssl.h>
 
 //////////////////////// GLOBALS ////////////////////////
 
@@ -32,11 +32,14 @@ const struct color GREEN =  {0x0000, 0x01ff, 0x0000};
 const struct color BLUE =   {0x0000, 0x0000, 0x01ff};
 
 // change states
-#define change_state(state, color) c->drm_state = state; setLED(led, color);
+#define change_state(state, color) c->drm_state = state; s.drm_state = state; setLED(led, color);
 #define set_stopped() change_state(STOPPED, RED)
 #define set_working() change_state(WORKING, YELLOW)
 #define set_playing() change_state(PLAYING, GREEN)
 #define set_paused()  change_state(PAUSED, BLUE)
+#define set_waiting_metadata() change_state(WAITING_METADATA, YELLOW)
+#define set_waiting_chunk() change_state(WAITING_CHUNK, YELLOW)
+#define set_reading_chunk() change_state(READING_CHUNK, YELLOW)
 
 // shared command channel -- read/write for both PS and PL
 volatile cmd_channel *c = (cmd_channel*)SHARED_DDR_BASE;
@@ -216,6 +219,122 @@ int gen_song_md(char *buf) {
 
     return buf[0];
 }
+
+static size_t hextobin(unsigned char *dst, const char *src) {
+	size_t num;
+	unsigned acc;
+	int z;
+
+	num = 0;
+	z = 0;
+	acc = 0;
+	while (*src != 0) {
+		int c = *src++;
+		if (c >= '0' && c <= '9') {
+			c -= '0';
+		} else if (c >= 'A' && c <= 'F') {
+			c -= ('A' - 10);
+		} else if (c >= 'a' && c <= 'f') {
+			c -= ('a' - 10);
+		} else {
+			continue;
+		}
+		if (z) {
+			*dst++ = (acc << 4) + c;
+			num++;
+		} else {
+			acc = c;
+		}
+		z = !z;
+	}
+	return num;
+}
+
+unsigned int read_header(unsigned char key[32], waveHeaderMetaStruct *waveHeaderMeta) {
+	unsigned char nonce[NONCE_SIZE], tag[MAC_SIZE];
+	unsigned char aad[12] = "wave_header";
+	unsigned char tag_buffer[MAC_SIZE];
+
+	memcpy(nonce, (void *)c->encWaveHeaderMeta.nonce, NONCE_SIZE);
+	memcpy(waveHeaderMeta, (void *)&(c->encWaveHeaderMeta.wave_header_meta), sizeof(waveHeaderMetaStruct));
+	memcpy(tag, (void *)c->encWaveHeaderMeta.tag, MAC_SIZE);
+
+	br_poly1305_ctmul_run(key, nonce, waveHeaderMeta, ENC_WAVE_HEADER_SZ, aad, sizeof(aad), tag_buffer, br_chacha20_ct_run, 0);
+
+	if (memcmp(tag_buffer, tag, MAC_SIZE) == 0) {
+		mb_printf("File header validated\r\n");
+		// Continue Decryption
+		set_waiting_metadata();
+		return waveHeaderMeta->metadata_size;
+	} else {
+		mb_printf("Modification detected!\r\n");
+		set_stopped();
+		return -1;
+	}
+
+	return 1;
+}
+
+int read_metadata(unsigned char key[32], int metadata_size, encryptedMetadata *metadata) {
+	unsigned char nonce[NONCE_SIZE], tag[MAC_SIZE];
+	unsigned char aad[10] = "meta_data";
+	unsigned char tag_buffer[MAC_SIZE];
+	unsigned char metadata_buffer[metadata_size];
+
+	memcpy(nonce, (void *)c->encMetadata.nonce, NONCE_SIZE);
+	memcpy(tag, (void *)c->encMetadata.tag, MAC_SIZE);
+	memcpy(metadata_buffer, get_metadata(c->encMetadata), metadata_size);
+
+	mb_printf("Reading metadata of size: %i\r\n", metadata_size);
+
+	br_poly1305_ctmul_run(key, nonce, metadata_buffer, metadata_size, aad, sizeof(aad), tag_buffer, br_chacha20_ct_run, 0);
+
+	if (memcmp(tag_buffer, tag, MAC_SIZE) == 0) {
+		mb_printf("Metadata validated\r\n");
+		set_waiting_chunk();
+		return 0;
+	} else {
+		mb_printf("Modification detected!\r\n");
+		set_stopped();
+		return -1;
+	}
+	return 1;
+}
+
+int read_chunks(unsigned char key[32], unsigned char *chunk_ptr, int chunk_size, int chunk_num, int chunk_buffer_size) {
+	set_reading_chunk();
+	mb_printf("Reading chunk %i, with chunk_size: %i \r\n", chunk_num, chunk_size);
+	if ((chunk_num % 1000) == 0) {
+		mb_printf("Reading chunk %i, with chunk_size: %i \r\n", chunk_num, chunk_size);
+	}
+	unsigned char nonce[NONCE_SIZE], tag[MAC_SIZE];
+
+	int aad = chunk_num;
+	unsigned char tag_buffer[MAC_SIZE];
+
+	memcpy(nonce, (void *) c->encSongChunk.nonce, NONCE_SIZE);
+	//mb_printf("Nonce size: %i\r\n", sizeof(nonce));
+	memcpy(chunk_ptr, (void *) c->encSongChunk.data, chunk_size);
+	//mb_printf("Chunk size: %i\r\n", sizeof(chunk));
+	memcpy(tag, (void *) c->encSongChunk.tag, MAC_SIZE);
+
+	br_poly1305_ctmul_run(key, nonce, chunk_ptr, chunk_size, &aad, sizeof(aad), tag_buffer, br_chacha20_ct_run, 0);
+
+	if (memcmp(tag_buffer, tag, MAC_SIZE) == 0) {
+		mb_printf("Chunk %i validated\r\n", chunk_num);
+		set_waiting_chunk();
+		return 0;
+	} else {
+		mb_printf("The tags are not the same :( \r\n");
+		mb_printf("Chunk %i failed", chunk_num);
+		mb_printf("Modification detected!\r\n");
+		set_stopped();
+		return -1;
+	}
+
+	return 1;
+}
+
 
 
 
@@ -467,6 +586,111 @@ void digital_out() {
     mb_printf("Song dump finished\r\n");
 }
 
+void play_encrypted_song(unsigned char key[32]) {
+	static unsigned char chunk[SONG_CHUNK_SZ];
+
+	waveHeaderMetaStruct waveHeaderMeta;
+
+	mb_printf("Chunk size set to: %i", SONG_CHUNK_SZ);
+
+	int metadata_size = read_header(key, &waveHeaderMeta);
+	if (metadata_size == -1) {
+		mb_printf("Song not valid!\r\n");
+		return;
+	}
+
+	int chunks_to_read, chunk_counter = 1;
+	unsigned int chunk_remainder;
+
+	chunks_to_read = waveHeaderMeta.wave_header.wav_size / SONG_CHUNK_SZ;
+	chunk_remainder = waveHeaderMeta.wave_header.wav_size % SONG_CHUNK_SZ;
+
+	encryptedMetadata metadata;
+
+	c->metadata_size = metadata_size;
+
+	set_waiting_metadata();
+
+	u32 counter = 0, rem, cp_num, cp_xfil_cnt, offset, dma_cnt, *fifo_fill;
+
+	mb_printf("Reading Audio File...");
+
+	rem = SONG_CHUNK_SZ;
+	fifo_fill = (u32 *) XPAR_FIFO_COUNT_AXI_GPIO_0_BASEADDR;
+
+	// write entire file to two-block codec fifo
+	// writes to one block while the other is being played
+
+	while (rem > 0) {
+		while (InterruptProcessed) {
+			InterruptProcessed = FALSE;
+
+			switch (c->cmd) {
+			case READ_METADATA:
+				if (read_metadata(key, metadata_size, &metadata) == 0) {
+					c->total_chunks = chunks_to_read;
+					c->chunk_size = SONG_CHUNK_SZ;
+					c->chunk_nums = SONG_CHUNK_BUFFER;
+					c->chunk_remainder = chunk_remainder;
+					break;
+				} else {
+					return;
+				}
+			case READ_CHUNK:
+				if (chunk_counter <= chunks_to_read) {
+					if (read_chunks(key, chunk, SONG_CHUNK_SZ, chunk_counter,
+							SONG_CHUNK_BUFFER) == 0) {
+						chunk_counter++;
+						break;
+					} else {
+						return;
+					}
+				} else {
+					if (read_chunks(key, chunk, chunk_remainder, chunk_counter,
+							SONG_CHUNK_BUFFER) == 0) {
+						break;
+					} else {
+						return;
+					}
+				}
+			case STOP:
+				return;
+			default:
+				break;
+			}
+		}
+
+		// calculate write size and offset
+		cp_num = (rem > CHUNK_SZ) ? CHUNK_SZ : rem;
+		offset = (counter++ % 2 == 0) ? 0 : CHUNK_SZ;
+
+		// do first mem cpy here into DMA BRAM
+		Xil_MemCpy(
+				(void *) (XPAR_MB_DMA_AXI_BRAM_CTRL_0_S_AXI_BASEADDR + offset),
+				(void *) (chunk) + SONG_CHUNK_SZ - rem,
+				(u32) (cp_num));
+
+		cp_xfil_cnt = cp_num;
+
+		while (cp_xfil_cnt > 0) {
+
+			// polling while loop to wait for DMA to be ready
+			// DMA must run first for this to yield the proper state
+			// rem != length checks for first run
+			while (XAxiDma_Busy(&sAxiDma, XAXIDMA_DMA_TO_DEVICE) && rem != CHUNK_SZ && *fifo_fill < (FIFO_CAP - 32));
+
+			// do DMA
+			dma_cnt = (FIFO_CAP - *fifo_fill > cp_xfil_cnt) ? FIFO_CAP - *fifo_fill : cp_xfil_cnt;
+			fnAudioPlay(sAxiDma, offset, dma_cnt);
+			cp_xfil_cnt -= dma_cnt;
+		}
+
+		rem -= cp_num;
+	}
+	// TODO: Check if song chunks can be played without file headers
+	// TODO: Make sure playing a song follows original checks, IE: user logged in/song is shared with them/they own the song/can be played in that region
+}
+
 
 //////////////////////// MAIN ////////////////////////
 
@@ -505,14 +729,17 @@ int main() {
     memset((void*)c, 0, sizeof(cmd_channel));
 
     mb_printf("Audio DRM Module has Booted\n\r");
+    // Load keys/secrets
+    unsigned char key[32];
 
-    decrypt_song();
+    hextobin(key, KEY_HEX);
 
     // Handle commands forever
     while(1) {
         // wait for interrupt to start
         if (InterruptProcessed) {
             InterruptProcessed = FALSE;
+
             set_working();
 
             // c->cmd is set by the miPod player
@@ -539,11 +766,14 @@ int main() {
             case DIGITAL_OUT:
                 digital_out();
                 break;
+            case READ_HEADER:
+            	play_encrypted_song(key);
+            	break;
             default:
                 break;
             }
 
-            // reset statuses and sleep to allowe player to recognize WORKING state
+            // reset statuses and sleep to allow player to recognize WORKING state
             strcpy((char *)c->username, s.username);
             c->login_status = s.logged_in;
             usleep(500);
