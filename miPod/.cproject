@@ -43,6 +43,7 @@
 							<tool id="xilinx.gnu.armv7.linux.cxx.toolchain.linker.1964705326" name="ARM v7 Linux g++ linker" superClass="xilinx.gnu.armv7.linux.cxx.toolchain.linker">
 								<option id="xilinx.gnu.c.link.option.libs.80297767" name="Libraries (-l)" superClass="xilinx.gnu.c.link.option.libs" valueType="libs">
 									<listOptionValue builtIn="false" value="ssl"/>
+									<listOptionValue builtIn="false" value="pthread"/>
 									<listOptionValue builtIn="false" value="crypto"/>
 								</option>
 								<option id="xilinx.gnu.c.link.option.paths.1094935363" name="Library search path (-L)" superClass="xilinx.gnu.c.link.option.paths" valueType="libPaths">

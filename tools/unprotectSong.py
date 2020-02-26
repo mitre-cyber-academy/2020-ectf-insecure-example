@@ -22,15 +22,15 @@ import math
 def decrypt_song(keys_loc):
     # Configuration Variables
     sample_rate = 48000     # 48KHz
-    chunk_time = 30         # 30s
+    chunk_time = 5          # 5s
     bytes_per_sample = 2    # 2 bytes sampled
     mac_size = 16           # poly1305 mac size
     hash_byte_size = 12     # Take 12 bytes of a 256 bit hash
     aad_size = 4            # Use 4 bytes to store aad size
     wave_header_size = 44
-    metadata_size_allocation = 8
+    metadata_size_allocation = 4
     encrypted_wave_header_size = wave_header_size + metadata_size_allocation + mac_size
-    chunk_size = sample_rate * chunk_time * bytes_per_sample
+    chunk_size = 20480
     encrypted_chunk_size = chunk_size + mac_size
     encoder = nacl.encoding.RawEncoder
 
@@ -86,17 +86,27 @@ def decrypt_song(keys_loc):
 
     aad = b"meta_data\0"
 
-    encrypted_metadata_size = metadata_size + mac_size
-    encrypted_metadata = encrypted_song.read(encrypted_metadata_size)
+    encrypted_metadata_tag = encrypted_song.read(mac_size)
+    print("Metadata tag: " + str(encrypted_metadata_tag) + " Size: " + str(len(encrypted_metadata_tag)))
+    encrypted_metadata = encrypted_song.read(metadata_size)
+    print("Encrypted metadata: " + str(encrypted_metadata) + " Size: " + str(len(encrypted_metadata)))
 
-    metadata = b.crypto_aead_chacha20poly1305_ietf_decrypt(encrypted_metadata, aad, nonce, key)
+    encrypted_metadata_combined = encrypted_metadata + encrypted_metadata_tag
+
+    print("Encrypted data: " + str(encrypted_metadata_combined))
+
+    metadata = b.crypto_aead_chacha20poly1305_ietf_decrypt(encrypted_metadata_combined, aad, nonce, key)
 
     for i in range(1, chunk_to_read + 1):
         print("Read chunk: " + str(i))
         nonce = encrypted_song.read(hash_byte_size)
         print("Chunk " + str(i) + " Nonce: " + str(nonce))
         aad = int.to_bytes(i, aad_size, 'little')
-        encrypted_chunk = encrypted_song.read(encrypted_chunk_size)
+        encrypted_chunk_tag = encrypted_song.read(mac_size)
+        encrypted_chunk_wo_tag = encrypted_song.read(chunk_size)
+
+        encrypted_chunk = encrypted_chunk_wo_tag + encrypted_chunk_tag
+
 
         song_chunk = b.crypto_aead_chacha20poly1305_ietf_decrypt(encrypted_chunk, aad, nonce, key)
         decrypted_song.write(song_chunk)
@@ -104,7 +114,11 @@ def decrypt_song(keys_loc):
     nonce = encrypted_song.read(hash_byte_size)
     print("Remainder Nonce: " + str(nonce))
     aad = int.to_bytes(chunk_to_read + 1, aad_size, 'little')
-    encrypted_chunk = encrypted_song.read(encrypted_chunk_remainder_size)
+
+    encrypted_chunk_tag = encrypted_song.read(mac_size)
+    encrypted_chunk_wo_tag = encrypted_song.read(chunk_remainder)
+
+    encrypted_chunk = encrypted_chunk_wo_tag + encrypted_chunk_tag
 
     song_chunk = b.crypto_aead_chacha20poly1305_ietf_decrypt(encrypted_chunk, aad, nonce, key)
     decrypted_song.write(song_chunk)

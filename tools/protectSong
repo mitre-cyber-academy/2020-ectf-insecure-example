@@ -72,13 +72,13 @@ class ProtectedSong(object):
     def encrypt_song(self, keys_loc):
         # Configuration Variables
         sample_rate = 48000     # 48KHz
-        chunk_time = 30         # 30s
+        chunk_time = 5          # 5s
         bytes_per_sample = 2    # 2 bytes sampled
-        chunk_size = sample_rate * chunk_time * bytes_per_sample
+        chunk_size = 20480
         hash_byte_size = 12     # Take 12 bytes of a 256 bit hash
         wave_header_size = 44   # http://soundfile.sapp.org/doc/WaveFormat/
         aad_size = 4            # Use 4 bytes to store aad size
-        metadata_size_allocation = 8
+        metadata_size_allocation = 4
 
         encoder = nacl.encoding.RawEncoder
         encrypted_file_size = 0 # Track total file size
@@ -107,9 +107,7 @@ class ProtectedSong(object):
         metadata_size = len(self.metadata).to_bytes(metadata_size_allocation, 'little')
         print("Metadata Size: " + str(metadata_size))
         print("Wave header: " + str(wave_header))
-        wave_header_raw = bytearray(wave_header)
-        wave_header_raw.extend(metadata_size)
-        wave_header_combined = bytes(wave_header_raw)
+        wave_header_combined = wave_header + metadata_size
 
         encrypted_file_size += len(self.metadata)
 
@@ -164,11 +162,19 @@ class ProtectedSong(object):
 
         encrypted_metadata = b.crypto_aead_chacha20poly1305_ietf_encrypt(self.metadata, aad, nonce, key)
         print("Encrypted Metadata size: " + str(len(encrypted_metadata)))
+        print("Encrypted metadata: " + str(encrypted_metadata))
 
         encrypted_file_size += len(encrypted_metadata)
 
         # Write encrypted metadata
-        encrypted_song.write(encrypted_metadata)
+        encrypted_metadata_tag = encrypted_metadata[-16:] # Mac_tag size
+        print("Metadata tag: " + str(encrypted_metadata_tag))
+
+        encrypted_metadata_wo_tag = encrypted_metadata[:len(self.metadata)]
+        print("Encrypted metadata: " + str(encrypted_metadata_wo_tag))
+
+        encrypted_song.write(encrypted_metadata_tag)
+        encrypted_song.write(encrypted_metadata_wo_tag)
 
         # Add 1 since range is exclusive
         for i in range(1, chunk_to_read + 1):
@@ -189,10 +195,12 @@ class ProtectedSong(object):
             encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(thirty_seconds, aad, nonce, key)
             print("Encrypted Chunk Size: " + str(len(encrypted_chunk)))
 
-            encrypted_file_size += len(encrypted_chunk)
+            encrypted_chunk_tag = encrypted_chunk[-16:]
+            encrypted_chunk_wo_tag = encrypted_chunk[:chunk_size]
 
             # Write chunk
-            encrypted_song.write(encrypted_chunk)
+            encrypted_song.write(encrypted_chunk_tag)
+            encrypted_song.write(encrypted_chunk_wo_tag)
             
         print("Working on Remainder")
         thirty_seconds = song.read(chunk_remainder)
@@ -211,14 +219,14 @@ class ProtectedSong(object):
         aad = int.to_bytes(chunk_to_read + 1, aad_size, 'little')
         encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(thirty_seconds, aad, nonce, key)
 
-        encrypted_file_size += len(encrypted_chunk)
+        encrypted_chunk_tag = encrypted_chunk[-16:]
+        encrypted_chunk_wo_tag = encrypted_chunk[:chunk_remainder]
 
         print("Encrypted Remainder Size: " + str(len(encrypted_chunk)))
 
-        print("Theoretical encrypted file size: " + str(encrypted_file_size))
-
         # Write remainders
-        encrypted_song.write(encrypted_chunk)
+        encrypted_song.write(encrypted_chunk_tag)
+        encrypted_song.write(encrypted_chunk_wo_tag)
 
         encrypted_song.close()
 
