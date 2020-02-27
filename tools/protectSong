@@ -3,12 +3,17 @@
 Description: Protects song by adding metadata or any other security measures
 Use: Once per song
 """
-import json
-import struct
-import os
+
+#import load from json to open json files for region and user secrets
+from json import load
+#Used for converting struct to basic types and converts it to bytes
+from struct import pack
+#used in conjecttion with open for certain file locations
+from os import path
+#
 import wave
 from argparse import ArgumentParser
-import numpy as np
+from numpy import frombuffer, int16 as np
 
 # Used for encryption
 import nacl.bindings as b
@@ -17,7 +22,7 @@ import nacl.hash
 import nacl.encoding
 
 # calculating the chunk remainder
-import math
+from math import floor
 
 # TODO: Move encryption processes to separate functions
 # TODO: Map arguments to correct variables
@@ -33,46 +38,11 @@ class ProtectedSong(object):
             metadata (bytearray): bytes containing metadata information
         """
         self.song = path_to_song
-        self.full_song, self.original_song = self.read_song(path_to_song)
         self.metadata = metadata
         self.metadata_size = metadata[:1]
 
-    def save_secured_song_to_wave(self, file_location):
-        """Saves secured song to wave file assuming all the same characteristics as original song
-        Args:
-            file_location (string): location to store the file including name"""
-        protected_wav = wave.open(os.path.abspath(file_location), 'wb')
-        protected_wav.setnchannels(self.original_song.getnchannels())
-        protected_wav.setsampwidth(self.original_song.getsampwidth())
-        protected_wav.setframerate(self.original_song.getframerate())
-        protected_wav.writeframes(self.metadata)
-
-        for val in self.full_song:
-            protected_wav_val = struct.pack('<h', val)
-            protected_wav.writeframesraw(protected_wav_val)
-
-        protected_wav.close()
-
-    def read_song(self, path, metadata_frames=0):
-        """Reads a wave file
-        Args:
-            path (string): path to song
-            metadata_frames (int): if not 0 disregard this number of frames as metadata
-        Returns:
-            vals (array): integer array of decoded values
-            song (Wave Object): wave object associated with entered song
-        """
-        song = wave.open(os.path.abspath(path), 'r')
-        if metadata_frames:
-            song.readframes(metadata_frames)  # skip the metadata frames when assigning vals
-        vals = np.frombuffer(song.readframes(song.getnframes()), dtype=np.int16)
-        song.close()
-        return vals, song
-
     def encrypt_song(self, keys_loc, outfile):
         # Configuration Variables
-        sample_rate = 48000     # 48KHz
-        chunk_time = 30         # 30s
         chunk_size = 20480
         hash_byte_size = 12     # Take 12 bytes of a 256 bit hash
         wave_header_size = 44   # http://soundfile.sapp.org/doc/WaveFormat/
@@ -95,7 +65,7 @@ class ProtectedSong(object):
         print("Song size: " + str(song_info_size))
 
         # Calculate number of chunks to read
-        chunk_to_read = math.floor(song_info_size / chunk_size)
+        chunk_to_read = floor(song_info_size / chunk_size)
         print("Chunks to read: " + str(chunk_to_read))
 
         # Calculate remainder
@@ -111,7 +81,7 @@ class ProtectedSong(object):
         encrypted_file_size += len(self.metadata)
 
         # Open secrets
-        keys_file = json.load(open(keys_loc, "r"))
+        keys_file = load(open(keys_loc, "r"))
 
         print("key " + keys_file["key"])
         print("iv " + keys_file["iv"])
@@ -142,16 +112,21 @@ class ProtectedSong(object):
         # Write Encrypted wave header
         encrypted_song.write(encrypted_header)
 
+        #Hash Metadata
         metadata_hash = nacl.hash.sha256(self.metadata, encoder=encoder)
         
         nonce = metadata_hash[:hash_byte_size]
 
+        #Write nonce to encrypted_song
         encrypted_song.write(nonce)
 
+        #Set aad to constant string
         aad = b"meta_data\0"
 
+        #apply chacha encryption to the meta data.
         encrypted_metadata = b.crypto_aead_chacha20poly1305_ietf_encrypt(self.metadata, aad, nonce, key)
 
+        #encrypted file size
         encrypted_file_size += len(encrypted_metadata)
 
         # Write encrypted metadata
@@ -167,19 +142,21 @@ class ProtectedSong(object):
         # Add 1 since range is exclusive
         for i in range(1, chunk_to_read + 1):
             #print("Working on Chunk " + str(i))
-            thirty_seconds = song.read(chunk_size)
+            chunk_buffer = song.read(chunk_size)
 
-            chunk_hash = nacl.hash.sha256(thirty_seconds, encoder=encoder)
+            chunk_hash = nacl.hash.sha256(chunk_buffer, encoder=encoder)
             #print("Chunk Hash: " + str(chunk_hash))
 
+            #set nonce to hash
             nonce = chunk_hash[:hash_byte_size]
 
+            #write nonce to encrypted song
             encrypted_song.write(nonce)
             
-
+            #aad equal to most signifigant bit?
             aad = int.to_bytes(i, aad_size, 'little')
 
-            encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(thirty_seconds, aad, nonce, key)
+            encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(chunk_buffer, aad, nonce, key)
             #print("Encrypted Chunk Size: " + str(len(encrypted_chunk)))
 
             encrypted_chunk_tag = encrypted_chunk[-16:]
@@ -190,21 +167,26 @@ class ProtectedSong(object):
             encrypted_song.write(encrypted_chunk_wo_tag)
             
         print("Working on Remainder")
-        thirty_seconds = song.read(chunk_remainder)
+        #reading bytes per chunk
+        chunk_buffer = song.read(chunk_remainder)
 
-        print("Buffer size: " + str(len(thirty_seconds)))
+        print("Buffer size: " + str(len(chunk_buffer)))
 
-        chunk_hash = nacl.hash.sha256(thirty_seconds, encoder=encoder)
+        #Hashes chunk
+        chunk_hash = nacl.hash.sha256(chunk_buffer, encoder=encoder)
         print("Chunk Hash: " + str(chunk_hash))
 
+        #sets nonce eqaul to chunk hash bytes
         nonce = chunk_hash[:hash_byte_size]
 
+        #write the nonce to the encrypted song
         encrypted_song.write(nonce)
 
-
+        #encrypts chunk with aad, nonce, key, chunk_buffer
         aad = int.to_bytes(chunk_to_read + 1, aad_size, 'little')
-        encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(thirty_seconds, aad, nonce, key)
+        encrypted_chunk = b.crypto_aead_chacha20poly1305_ietf_encrypt(chunk_buffer, aad, nonce, key)
 
+        #sets encrypted chunk tag to the last 16 characters
         encrypted_chunk_tag = encrypted_chunk[-16:]
         encrypted_chunk_wo_tag = encrypted_chunk[:chunk_remainder]
 
@@ -214,6 +196,7 @@ class ProtectedSong(object):
         encrypted_song.write(encrypted_chunk_tag)
         encrypted_song.write(encrypted_chunk_wo_tag)
 
+        #close encrypted song
         encrypted_song.close()
 
         song.close()
@@ -234,11 +217,11 @@ def create_metadata(regions, user, user_secret_location, region_info):
         >>create_metadata(['USA', 'Canada'], 'user1', 'user_secrets.json', {'USA': 1, 'Canada':2})
         'x06/x00/x01/x00/x01/x02'
     """
-    user_secrets = json.load(open(os.path.abspath(user_secret_location)))
+    user_secrets = load(open(path.abspath(user_secret_location)))
 
     # note: metadata must be an even length since each sample is 2B long
     # and ARM processors require memory accesses to be aligned to the type size
-    metadata = struct.pack(
+    metadata = pack(
         '=3B{regions_length}s{regions_len_2}s'.format(regions_length=len(regions), regions_len_2=len(regions) % 2),
         int(user_secrets[user]['id']), len(regions), 0,
         bytes([region_info[str(r)] for r in regions]),
@@ -247,6 +230,13 @@ def create_metadata(regions, user, user_secret_location, region_info):
 
 
 def main():
+    """Main function
+    Description:
+        Parses Arguments sent through the terminal, and initiates the song encryption process
+
+    Returns:
+        none
+    """
     parser = ArgumentParser(description='main interface to protect songs')
     parser.add_argument('--region-list', nargs='+', help='List of regions song can be played in', required=True)
     parser.add_argument('--region-secrets-path', help='File location for the region secrets file',
@@ -257,15 +247,14 @@ def main():
     parser.add_argument('--user-secrets-path', help='File location for the user secrets file', required=True)
     args = parser.parse_args()
 
-    regions = json.load(open(os.path.abspath(args.region_secrets_path)))
+    regions = load(open(path.abspath(args.region_secrets_path)))
     try:
         metadata = create_metadata(args.region_list, args.owner, args.user_secrets_path, regions)
     except ValueError:
         raise ValueError('Ensure all user IDs are integers and all regions are in the provided region_information.json')
     protected_song = ProtectedSong(args.infile, metadata)
-    protected_song.save_secured_song_to_wave(args.outfile)
     protected_song.encrypt_song("keys.json", args.outfile)
 
-
+#initites main()
 if __name__ == '__main__':
     main()
