@@ -87,7 +87,6 @@ class ProtectedSong(object):
         print("iv " + keys_file["iv"])
         
         key = bytes.fromhex(keys_file["key"])
-        iv = bytes.fromhex(keys_file["iv"])
 
         print("Starting encrypt song")
 

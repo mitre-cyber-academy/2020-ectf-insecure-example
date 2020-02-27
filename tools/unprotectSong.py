@@ -37,11 +37,7 @@ def decrypt_song(keys_loc, infile, outfile):
     metadata_size_allocation = 4
     encrypted_wave_header_size = wave_header_size + metadata_size_allocation + mac_size
     chunk_size = 20480
-    encrypted_chunk_size = chunk_size + mac_size
-    encoder = nacl.encoding.RawEncoder
-
-    encrypted_file_size = 0 #encrypted fiel size
-
+    
     print("Setting chunksize to " + str(chunk_size) + " bytes")
 
     #opens decrypted and encrypted song locations
@@ -56,7 +52,6 @@ def decrypt_song(keys_loc, infile, outfile):
 
     #key to decrypt the encrypted song file
     key = bytes.fromhex(keys_file["key"])
-    iv = bytes.fromhex(keys_file["iv"])
 
     print("Starting decrypt song")
 
@@ -92,7 +87,6 @@ def decrypt_song(keys_loc, infile, outfile):
 
     # Calculate remainder
     chunk_remainder = song_info_size % chunk_size
-    encrypted_chunk_remainder_size = chunk_remainder + mac_size
     print("Chunk remainder size: " + str(chunk_remainder))
 
     #nonce to decrypt metadata
@@ -112,7 +106,6 @@ def decrypt_song(keys_loc, infile, outfile):
 
     print("Encrypted data: " + str(encrypted_metadata_combined))
 
-    metadata = b.crypto_aead_chacha20poly1305_ietf_decrypt(encrypted_metadata_combined, aad, nonce, key)
 
     #reads individual chunks
     for i in range(1, chunk_to_read + 1):
