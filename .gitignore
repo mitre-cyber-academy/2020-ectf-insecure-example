@@ -13,5 +13,5 @@ BOOT
 miPod/Debug
 miPod/.settings
 mb/drm_audio_fw/Debug
-mb/drm_audio_fw_bsp/microblaze_0/lib/libxil.a
 mb/drm_audio_fw/src/secrets.h
+tools/device
