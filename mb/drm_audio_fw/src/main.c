@@ -47,7 +47,6 @@ volatile cmd_channel *c = (cmd_channel*)SHARED_DDR_BASE;
 // internal state store
 internal_state s;
 
-
 //////////////////////// INTERRUPT HANDLING ////////////////////////
 
 
@@ -250,7 +249,7 @@ static size_t hextobin(unsigned char *dst, const char *src) {
 	return num;
 }
 
-unsigned int read_header(unsigned char key[32], waveHeaderMetaStruct *waveHeaderMeta) {
+unsigned int read_header(unsigned char *key, waveHeaderMetaStruct *waveHeaderMeta) {
 	unsigned char nonce[NONCE_SIZE], tag[MAC_SIZE];
 	unsigned char aad[12] = "wave_header";
 	unsigned char tag_buffer[MAC_SIZE];
@@ -277,7 +276,7 @@ unsigned int read_header(unsigned char key[32], waveHeaderMetaStruct *waveHeader
 	return 1;
 }
 
-int read_metadata(unsigned char key[32], int metadata_size, encryptedMetadata *metadata) {
+int read_metadata(unsigned char *key, int metadata_size, encryptedMetadata *metadata) {
 	unsigned char nonce[NONCE_SIZE], tag[MAC_SIZE];
 	unsigned char aad[10] = "meta_data";
 	unsigned char tag_buffer[MAC_SIZE];
@@ -304,26 +303,26 @@ int read_metadata(unsigned char key[32], int metadata_size, encryptedMetadata *m
 	return 1;
 }
 
-int read_chunks(unsigned char key[32], unsigned char *chunk_ptr, int chunk_size, int chunk_num, int chunk_buffer_size) {
-	set_reading_chunk();
+int read_chunks(unsigned char *key, unsigned char *chunk_ptr, int chunk_size, int chunk_num) {
+	static unsigned char encrypt_chunk_buffer[SONG_CHUNK_SZ];
 	mb_printf("Reading chunk %i, with chunk_size: %i \r\n", chunk_num, chunk_size);
-	if ((chunk_num % 1000) == 0) {
-		mb_printf("Reading chunk %i, with chunk_size: %i \r\n", chunk_num, chunk_size);
-	}
+
 	unsigned char nonce[NONCE_SIZE], tag[MAC_SIZE];
 
 	int aad = chunk_num;
+
 	unsigned char tag_buffer[MAC_SIZE];
 
-	memcpy(nonce, (void *) c->encSongChunk.nonce, NONCE_SIZE);
+	memcpy(nonce, (unsigned char *) &c->encSongChunk.nonce, NONCE_SIZE);
 	//mb_printf("Nonce size: %i\r\n", sizeof(nonce));
-	memcpy(chunk_ptr, (void *) c->encSongChunk.data, chunk_size);
+	memcpy(encrypt_chunk_buffer, (unsigned char *) &c->encSongChunk.data, SONG_CHUNK_SZ);
 	//mb_printf("Chunk size: %i\r\n", sizeof(chunk));
-	memcpy(tag, (void *) c->encSongChunk.tag, MAC_SIZE);
+	memcpy(tag, (unsigned char *) &c->encSongChunk.tag, MAC_SIZE);
 
-	br_poly1305_ctmul_run(key, nonce, chunk_ptr, chunk_size, &aad, sizeof(aad), tag_buffer, br_chacha20_ct_run, 0);
+	br_poly1305_ctmul_run(key, nonce, encrypt_chunk_buffer, chunk_size, &aad, sizeof(aad), tag_buffer, br_chacha20_ct_run, 0);
 
 	if (memcmp(tag_buffer, tag, MAC_SIZE) == 0) {
+		memcpy(chunk_ptr, encrypt_chunk_buffer, chunk_size);
 		mb_printf("Chunk %i validated\r\n", chunk_num);
 		set_waiting_chunk();
 		return 0;
@@ -589,8 +588,11 @@ void digital_out() {
     mb_printf("Song dump finished\r\n");
 }
 
-void play_encrypted_song(unsigned char key[32]) {
+void play_encrypted_song(unsigned char *key) {
 	static unsigned char chunk[SONG_CHUNK_SZ];
+	memset(chunk, 0, SONG_CHUNK_SZ);
+
+	int playingChunk = 0;
 
 	waveHeaderMetaStruct waveHeaderMeta;
 
@@ -601,8 +603,10 @@ void play_encrypted_song(unsigned char key[32]) {
 		mb_printf("Song not valid!\r\n");
 		return;
 	}
+	c->metadata_size = metadata_size;
 
 	mb_printf("Waiting for metadata!\r\n");
+
 	set_waiting_metadata();
 
 	int chunks_to_read, chunk_counter = 1;
@@ -612,8 +616,6 @@ void play_encrypted_song(unsigned char key[32]) {
 	chunk_remainder = waveHeaderMeta.wave_header.wav_size % SONG_CHUNK_SZ;
 
 	encryptedMetadata metadata;
-	c->metadata_size = metadata_size;
-
 
 	u32 counter = 0, rem, cp_num, cp_xfil_cnt, offset, dma_cnt, *fifo_fill;
 
@@ -626,7 +628,7 @@ void play_encrypted_song(unsigned char key[32]) {
 	// writes to one block while the other is being played
 
 	while (1) {
-		mb_printf("In Play loop\r\n");
+		//mb_printf("In Play loop\r\n");
 		while (InterruptProcessed) {
 			InterruptProcessed = FALSE;
 
@@ -639,28 +641,30 @@ void play_encrypted_song(unsigned char key[32]) {
 				if (read_metadata(key, metadata_size, &metadata) == 0) {
 					c->total_chunks = chunks_to_read;
 					c->chunk_size = SONG_CHUNK_SZ;
-					c->chunk_nums = SONG_CHUNK_BUFFER;
 					c->chunk_remainder = chunk_remainder;
 					break;
 				} else {
 					return;
 				}
 			case READ_CHUNK:
-				if (chunk_counter <= chunks_to_read) {
-					if (read_chunks(key, chunk, SONG_CHUNK_SZ, chunk_counter,
-							SONG_CHUNK_BUFFER) == 0) {
+				if (chunk_counter < chunks_to_read) {
+					if (read_chunks(key, chunk, SONG_CHUNK_SZ, chunk_counter) == 0) {
 						chunk_counter++;
+						playingChunk = 1;
+						break;
+					} else {
+						return;
+					}
+				} else if (chunk_counter == chunks_to_read){
+					if (read_chunks(key, chunk, chunk_remainder, chunk_counter) == 0) {
+						playingChunk = 1;
 						break;
 					} else {
 						return;
 					}
 				} else {
-					if (read_chunks(key, chunk, chunk_remainder, chunk_counter,
-							SONG_CHUNK_BUFFER) == 0) {
-						break;
-					} else {
-						return;
-					}
+					playingChunk = 0;
+					return;
 				}
 			case STOP:
 				return;
@@ -669,11 +673,12 @@ void play_encrypted_song(unsigned char key[32]) {
 			}
 		}
 
+		if (playingChunk == 1) {
 		mb_printf("Starting play song \r\n");
 
 		// calculate write size and offset
 		cp_num = (rem > CHUNK_SZ) ? CHUNK_SZ : rem;
-		offset = (counter++ % 2 == 0) ? 0 : CHUNK_SZ;
+		offset = (counter++ % 2 == 0) ? 0 : CHUNK_SZ; // Write to the first part of the buffer or the second part
 
 		// do first mem cpy here into DMA BRAM
 		Xil_MemCpy(
@@ -699,6 +704,7 @@ void play_encrypted_song(unsigned char key[32]) {
 		}
 
 		rem -= cp_num;
+		}
 	}
 	// TODO: Check if song chunks can be played without file headers
 	// TODO: Make sure playing a song follows original checks, IE: user logged in/song is shared with them/they own the song/can be played in that region

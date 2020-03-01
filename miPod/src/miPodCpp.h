@@ -39,7 +39,7 @@
 #define NONCE_SIZE 12
 #define WAVE_HEADER_SZ 44
 #define META_DATA_ALLOC 4
-#define SONG_CHUNK_SZ 20480
+#define SONG_CHUNK_SZ 32000
 #define SONG_CHUNK_RAM 1000
 #define ENC_WAVE_HEADER_SZ WAVE_HEADER_SZ + META_DATA_ALLOC
 #define MAC_SIZE 16
@@ -95,7 +95,7 @@ typedef struct __attribute__ ((__packed__)) {
 	unsigned char metadata[];
 } encryptedMetadata;
 
-#define get_metadata(m) ((unsigned char *)(&m.metadata))
+#define get_metadata(m) ((unsigned char *)&m + NONCE_SIZE + MAC_SIZE)
 
 typedef struct __attribute__ ((__packed__)) {
 	unsigned char nonce[NONCE_SIZE];
@@ -136,7 +136,7 @@ typedef volatile struct __attribute__((__packed__)) {
         queryStruct query;
         encryptedWaveheader encWaveHeader;
         encryptedMetadata encMetadata;
-        encryptedSongChunk encSongChunk[1000];
+        encryptedSongChunk encSongChunk;
         char buf[MAX_SONG_SZ]; // sets correct size of cmd_channel for allocation
     };
 } cmd_channel;

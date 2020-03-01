@@ -38,8 +38,7 @@
 #define META_DATA_ALLOC 4
 #define ENC_WAVE_HEADER_SZ WAVE_HEADER_SZ + META_DATA_ALLOC
 #define MAC_SIZE 16
-#define SONG_CHUNK_SZ 20480
-#define SONG_CHUNK_BUFFER 1000
+#define SONG_CHUNK_SZ 32000
 #define ENC_CHUNK_SZ SONG_CHUNK_SZ + MAC_SIZE
 
 #define RID_SZ 8
@@ -114,7 +113,7 @@ typedef struct __attribute__ ((__packed__)) {
 	unsigned char metadata[];
 } encryptedMetadata;
 
-#define get_metadata(m) ((unsigned char *)(&m.metadata))
+#define get_metadata(m) ((unsigned char *)&m + NONCE_SIZE + MAC_SIZE)
 
 typedef struct __attribute__ ((__packed__)) {
 	unsigned char nonce[NONCE_SIZE];
