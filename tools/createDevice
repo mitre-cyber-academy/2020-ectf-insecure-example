@@ -64,25 +64,53 @@ def main(region_names, user_names, user_secrets, region_secrets, device_dir):
         #exception handling for creating device secrets
         print("Unable to open secrets file: {e}".format(e=e))
         return
+        
 
+    
     # check for valid region names
     try:
-        rids = [str(region_secrets[r]) for r in region_names]
+        #rids = [str(region_secrets['regions']) for r in region_names]
+        #print(rids)
+        
+        rids = []
+        for region in region_secrets["regions"]:
+            
+            for validRegion in region_names:
+                
+                if(validRegion in region["regionName"]):
+                    
+                    rids.append(str(region))
+        
     except Exception as e:
         #exception handling for region validty check
         print("Unable to create secrets file: {e} "
               "Please ensure all regions entered are in the list: {user_secrets}".format(e=e, user_secrets=user_secrets.keys()))
         return
+    
 
+    
     # check for valid user names
     try:
-        uids = [str(user_secrets[u]['id']) for u in usernames]
+        #uids = [str(user_secrets['users']['userName']) for u in usernames]
+        uids = []
+
+        for user in user_secrets["users"]:
+
+            for validUser in user_names:
+
+                if(validUser in user["userName"]):
+
+                    uids.append(str(user))
+        
+        #print(uids)
     except Exception as e:
         print("Unable to create secrets file: {e} "
-              "Please ensure all regions entered are in the list: {user_secrets}".format(e=e, user_secrets=user_secrets.keys()))
+              "Please ensure all users entered are in the list: {user_secrets}".format(e=e, user_secrets=user_secrets.keys()))
         return
-
+    #////////////////////////////////////////////////////////////////////////////////////////
     # write secrets to device secrets
+
+#///////// WTF is this crap /////////////////////////////////////////////////////////////////
     device_secrets.write(f'''
 #ifndef SECRETS_H
 #define SECRETS_H
@@ -99,7 +127,7 @@ const u8 PROVISIONED_UIDS[] = {{ {", ".join(uids)} }};
 const char *PROVISIONED_PINS[] = {{ {", ".join(['"' + user_secrets[u]['pin'] + '"' for u in user_names])} }};
 #endif // SECRETS_H
 ''')
-
+#////// WTF is this CRAP ^^^^^^////////////////////////////////////////////////////////////////
 
 def get_args():
     """
