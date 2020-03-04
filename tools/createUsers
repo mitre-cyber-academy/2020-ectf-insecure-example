@@ -32,8 +32,8 @@ def main(user_list, outfile):
         return 0
 
     try:
-        # Intitialize empty dictionary
-        userDictionary = {}
+        # Intitialize empty list
+        userList = []
 
         for entry in user_list:
 
@@ -52,8 +52,13 @@ def main(user_list, outfile):
             # Has pin and salt
             hashedPin = sha256((pin + salt).encode("utf-8")).hexdigest()
 
-            # Add entry to user dictionary
-            userDictionary.update({userID: {"userName" : userName, "hashedPin" : hashedPin, "salt" : salt}})
+            # Add entry to user list
+            userList.append({
+                "userID": userID,
+                "userName": userName,
+                "hashedPin": hashedPin,
+                "salt": salt
+            })
 
     # If username and/or pin cannot be parsed print an error message
     except IndexError:
@@ -62,7 +67,7 @@ def main(user_list, outfile):
             "space seperated pairs of usernames and pins. Example: --user-list user1:12345678 user2:12345689")
     
     # Encode userDictionary as JSON
-    dataToWrite = json.dumps(userDictionary)
+    dataToWrite = json.dumps(userList, indent=4)
 
     # Write JSON to outfile
     secrets.write(dataToWrite)
