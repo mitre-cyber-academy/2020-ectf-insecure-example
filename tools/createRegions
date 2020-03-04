@@ -31,20 +31,23 @@ def main(region_list, file_name):
         print("Unable to open secrets file: %s" % (e,))
         return 0
 
-    # Intitialize empty dictionary
-    regionDictionary = {}
+    # Intitialize empty list
+    regionList = []
 
-    # Fill regionDictionary
+    # Fill regionList
     for region in region_list:
         
         # Generate random regionID
         regionID = token_hex(3)
 
-        # Add region and regionID to regionDictionary
-        regionDictionary.update({region: regionID})
+        # Add region and regionID to region list
+        regionList.append({
+            "regionName": region,
+            "regionID": regionID
+        })
 
     # Encode userDictionary as JSON
-    dataToWrite = json.dumps(regionDictionary)
+    dataToWrite = json.dumps(regionList, indent=4)
 
     # Write JSON to outfile
     secrets.write(dataToWrite)
