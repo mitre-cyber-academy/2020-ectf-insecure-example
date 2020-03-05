@@ -146,9 +146,14 @@ void read_enc_metadata(FILE *fp, int metadata_size) {
 		return;
 	}
 
-	int metadata_total_size = NONCE_SIZE + MAC_SIZE + metadata_size;
+	printf("reading metadata of size %i\r\n", metadata_size);
 
-	fread((void *)&(c->encMetadata), metadata_total_size, 1, fp);
+	int metadata_total_size = NONCE_SIZE + MAC_SIZE + metadata_size;
+	unsigned char meta_buffer[metadata_total_size];
+
+	fread(meta_buffer, metadata_total_size, 1, fp);
+
+	memcpy((void *)&(c->encMetadata), meta_buffer, metadata_total_size);
 
 	send_command(READ_METADATA);
 
@@ -157,7 +162,6 @@ void read_enc_metadata(FILE *fp, int metadata_size) {
 }
 
 void read_enc_chunk(FILE *fp, int chunk_size) {
-	std::cout << "Reading chunk size: " << chunk_size << std::endl;
 	int chunk_total_size = NONCE_SIZE + MAC_SIZE + chunk_size;
 
 	unsigned char buffer[chunk_total_size];
@@ -166,31 +170,29 @@ void read_enc_chunk(FILE *fp, int chunk_size) {
 
 	memcpy((void *)&(c->encSongChunk), buffer, chunk_total_size);
 
+	//printf("Song chunk nonce: %s\r\n", c->encSongChunk.nonce);
+	//printf("Song chunk tag: %s\r\n", c->encSongChunk.tag);
+
 	send_command(READ_CHUNK);
 
 	return;
 }
+
 void *read_enc_chunk_thread(void *fp) {
 	std::cout << "Start sending chunks!" << std::endl;
-	int chunk_size = c->chunk_size;
-	read_enc_chunk((FILE *)fp, chunk_size);
-
-	if (c->drm_state == STOPPED) {
-		return 0;
-	}
-
-	while (1) {
-		while(c->drm_state == READING_CHUNK) continue;
+	do {
 		while(c->drm_state == WAITING_CHUNK) {
 			int chunk_size = c->chunk_size;
-			std::cout << "Reading another chunk" << std::endl;
+			std::cout << "Reading chunk of size: " << chunk_size << std::endl;
 			read_enc_chunk((FILE *)fp, chunk_size);
-		}
 
+			c->drm_state = READING_CHUNK; // not the best idea but TODO: Change
+		}
+		while(c->drm_state == READING_CHUNK) continue;
 		if (c->drm_state == STOPPED) {
 			return 0;
 		}
-	}
+	} while(1);
 }
 
 //////////////////////// COMMAND FUNCTIONS ////////////////////////
@@ -497,7 +499,7 @@ void play_encrypted_song(std::string song_name) {
 		return;
 	}
 
-	while (c->drm_state == STOPPED) continue; // wait for DRM to start playing
+	while (c->drm_state == STOPPED) continue;
 	while (c->drm_state == WORKING) continue;
 
 	if (c->drm_state == WAITING_METADATA) {
@@ -507,9 +509,12 @@ void play_encrypted_song(std::string song_name) {
 	}
 
 	std::cout << "Waiting for metadata to process" << std::endl;
-	while (c->drm_state == WAITING_METADATA) continue;
+	while (c->drm_state == WAITING_METADATA) {
+		//std::cout << "???????" << std::endl;
+		continue;
+	}
 	std::cout << "Metadata Processed!" << std::endl;
-	while (c->drm_state == STOPPED) continue; // wait for DRM to start playing
+	while (c->drm_state == STOPPED) continue;
 	while (c->drm_state == WORKING) continue;
 
 	std::cout << "Check if we can send a song chunk" << std::endl;
