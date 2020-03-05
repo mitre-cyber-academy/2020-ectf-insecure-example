@@ -54,7 +54,17 @@ for vegetable in vegetables:
 	vegetableObject = {"name": vegetable, "quantity": quantity}
 	fruitDict["vegetables"].append(vegetableObject)
 
+print("Pre Del")
+print(json.dumps(fruitDict, indent=2))
 
+
+validVegetables = ["tomato"]
+
+for vegetable in fruitDict['vegetables']:
+	if vegetable["name"] in validVegetables:
+		fruitDict['vegetables'].remove(vegetable)
+
+print("\nPost Del")
 print(json.dumps(fruitDict, indent=2))
 
 
